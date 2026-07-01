@@ -10,9 +10,9 @@
 <title>루시잉크</title>
 <link rel="manifest" id="pwaManifest" href="./manifest.json">
 <script>(function(){var icon=new URLSearchParams(location.search).get("pwa-icon");if(["ink","violet","rose","forest","gold","pastel-blue","pastel-pink","pastel-green","pastel-purple","pastel-yellow"].includes(icon)){var manifest=document.getElementById("pwaManifest");if(manifest)manifest.href="./manifest-"+icon+".json";}})();</script>
-<link rel="icon" type="image/svg+xml" href="./luci-icon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="./luci-icon-192.png">
-<link rel="apple-touch-icon" href="./luci-icon-192.png">
+<link rel="icon" type="image/svg+xml" href="./lucid_drop_ink.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="./lucid_drop_ink_192.png">
+<link rel="apple-touch-icon" href="./lucid_drop_ink_192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Parisienne&display=swap" rel="stylesheet">
 <style>
@@ -1194,8 +1194,50 @@
   .iconbtn svg { width: 22px; height: 22px; stroke: url(#iconGrad); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .iconbtn svg circle[fill="currentColor"], .iconbtn svg [stroke="none"] { fill: #9db0f0; }
 
-  /* ===== Brand logo (펜촉 닙 + Lumi ✦ Ink) ===== */
+  /* ===== Brand logo (Lucid Drop + Lucy ✦ Ink) ===== */
   .brand-logo { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; user-select: none; cursor: pointer; }
+  .brand-logo {
+    --lucid-bg: color-mix(in srgb, var(--accent) 28%, var(--bg) 72%);
+    --lucid-top-l: color-mix(in srgb, white 90%, var(--accent) 10%);
+    --lucid-top-r: color-mix(in srgb, white 74%, var(--accent) 26%);
+    --lucid-mid-l: color-mix(in srgb, white 52%, var(--accent) 48%);
+    --lucid-mid-r: color-mix(in srgb, white 35%, var(--accent-2) 65%);
+    --lucid-low-l: color-mix(in srgb, var(--accent) 74%, var(--bg) 26%);
+    --lucid-low-r: color-mix(in srgb, var(--accent-2) 76%, var(--bg) 24%);
+    --lucid-line-soft: color-mix(in srgb, white 68%, var(--accent) 32%);
+    --lucid-line-core: color-mix(in srgb, white 92%, var(--accent) 8%);
+    --lucid-glow: color-mix(in srgb, white 38%, var(--accent) 62%);
+    --lucid-cream: #fffdf6;
+  }
+  html[data-theme="light"] .brand-logo {
+    --lucid-bg: color-mix(in srgb, var(--accent) 24%, white 76%);
+    --lucid-top-l: color-mix(in srgb, white 94%, var(--accent) 6%);
+    --lucid-top-r: color-mix(in srgb, white 80%, var(--accent) 20%);
+    --lucid-mid-l: color-mix(in srgb, white 62%, var(--accent) 38%);
+    --lucid-mid-r: color-mix(in srgb, white 45%, var(--accent-2) 55%);
+    --lucid-low-l: color-mix(in srgb, var(--accent) 62%, var(--accent-deep) 38%);
+    --lucid-low-r: color-mix(in srgb, var(--accent-2) 64%, var(--accent-deep) 36%);
+    --lucid-line-soft: color-mix(in srgb, white 52%, var(--accent) 48%);
+    --lucid-line-core: color-mix(in srgb, white 86%, var(--accent) 14%);
+    --lucid-glow: color-mix(in srgb, white 58%, var(--accent) 42%);
+  }
+  .brand-logo .lucidlogo { width: 64px; height: 64px; flex: 0 0 auto; overflow: visible; filter: drop-shadow(0 0 13px color-mix(in srgb, var(--accent) 48%, transparent)); }
+  html[data-theme="light"] .brand-logo .lucidlogo { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 32%, transparent)); }
+  .brand-logo .lucid-bg { fill: var(--lucid-bg); }
+  .brand-logo .lucid-spark { fill: var(--lucid-line-core); }
+  .brand-logo .lucid-top-l { fill: var(--lucid-top-l); }
+  .brand-logo .lucid-top-r { fill: var(--lucid-top-r); }
+  .brand-logo .lucid-mid-l { fill: var(--lucid-mid-l); }
+  .brand-logo .lucid-mid-r { fill: var(--lucid-mid-r); }
+  .brand-logo .lucid-low-l { fill: var(--lucid-low-l); }
+  .brand-logo .lucid-low-r { fill: var(--lucid-low-r); }
+  .brand-logo .lucid-line-soft { stroke: var(--lucid-line-soft); opacity: .3; }
+  .brand-logo .lucid-line-core { stroke: var(--lucid-line-core); opacity: .88; }
+  .brand-logo .lucid-stem-soft { stroke: var(--lucid-line-soft); opacity: .32; }
+  .brand-logo .lucid-stem-core { stroke: var(--accent); opacity: .95; }
+  .brand-logo .lucid-glow { fill: var(--lucid-glow); opacity: .36; }
+  .brand-logo .lucid-core, .brand-logo .lucid-star { fill: var(--lucid-cream); }
+  .brand-logo .lucid-ring { fill: none; stroke: var(--accent); stroke-width: 14; }
   .brand-logo .niblogo { width: 64px; height: 64px; flex: 0 0 auto; filter: drop-shadow(0 0 13px rgba(106,208,255,.55)); }
   .brand-logo .niblogo .nib-body { fill: #eef2fa; }
   .brand-logo .niblogo .nib-ink { fill: #2b3a66; }
@@ -1714,7 +1756,7 @@
   }
 
   /* ============================================================
-     LUMI INK · v1.7 release — "ink press line"
+     LUCYINK · v1.7 release — "ink press line"
      All selectors scoped to #screen-regex / .regex-workshop so the
      shared HTML-workshop chrome is untouched. Colour comes from the
      live theme tokens; a single brand-gold seal anchors the identity.
@@ -4125,7 +4167,7 @@
         <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
       <div class="tb-center">
-        <span class="brand-logo" id="homeLogo"><svg class="niblogo" viewBox="0 0 64 64"><path class="nib-body" d="M32 7C22 7 15 17 15 29c0 14 12 26 17 29 5-3 17-15 17-29 0-12-7-22-17-22z"/><circle class="nib-ink" cx="32" cy="25" r="6"/><rect class="nib-ink" x="30.6" y="28" width="2.8" height="23" rx="1.4"/><circle class="nib-tip" cx="32" cy="52" r="3.6"/></svg><span class="wordrow"><span class="word">Lumi</span><svg class="bstar" viewBox="0 0 24 24"><path d="M12 2C12.6 8 16 11.4 22 12C16 12.6 12.6 16 12 22C11.4 16 8 12.6 2 12C8 11.4 11.4 8 12 2Z"/></svg><span class="word">Ink</span></span></span>
+        <span class="brand-logo" id="homeLogo"><svg class="lucidlogo" viewBox="0 0 512 512" aria-hidden="true"><path class="lucid-bg" d="M256,20 C420,20 492,92 492,256 C492,420 420,492 256,492 C92,492 20,420 20,256 C20,92 92,20 256,20 Z"/><circle class="lucid-spark" cx="110" cy="110" r="2.5" opacity=".5"/><circle class="lucid-spark" cx="150" cy="380" r="2" opacity=".35"/><circle class="lucid-spark" cx="400" cy="150" r="2.2" opacity=".4"/><circle class="lucid-spark" cx="420" cy="360" r="1.8" opacity=".3"/><polygon class="lucid-top-l" points="256,90 196,112 256,150"/><polygon class="lucid-top-r" points="256,90 316,112 256,150"/><polygon class="lucid-top-l" points="196,112 156,172 256,150"/><polygon class="lucid-top-r" points="316,112 356,172 256,150"/><polygon class="lucid-mid-l" points="156,172 146,232 256,150"/><polygon class="lucid-mid-r" points="356,172 366,232 256,150"/><polygon class="lucid-mid-l" points="146,232 256,262 256,150"/><polygon class="lucid-mid-r" points="366,232 256,262 256,150"/><polygon class="lucid-low-l" points="146,232 182,314 256,262"/><polygon class="lucid-low-r" points="366,232 330,314 256,262"/><polygon class="lucid-low-l" points="182,314 256,436 256,262"/><polygon class="lucid-low-r" points="330,314 256,436 256,262"/><g fill="none" stroke-linejoin="round" stroke-linecap="round"><g class="lucid-line-soft" stroke-width="3.2"><path d="M256,90 L196,112 L156,172 L146,232 L182,314 L256,436 L330,314 L366,232 L356,172 L316,112 Z"/><path d="M196,112 L256,150 L316,112"/><path d="M146,232 L256,150 L366,232"/><path d="M146,232 L256,262 L366,232"/><path d="M182,314 L256,262 L330,314"/></g><g class="lucid-line-core" stroke-width="1.1"><path d="M256,90 L196,112 L156,172 L146,232 L182,314 L256,436 L330,314 L366,232 L356,172 L316,112 Z"/><path d="M196,112 L256,150 L316,112"/><path d="M146,232 L256,150 L366,232"/><path d="M146,232 L256,262 L366,232"/><path d="M182,314 L256,262 L330,314"/></g></g><line class="lucid-stem-soft" x1="256" y1="208" x2="256" y2="378" stroke-width="9" stroke-linecap="round"/><line class="lucid-stem-core" x1="256" y1="208" x2="256" y2="378" stroke-width="3" stroke-linecap="round"/><circle class="lucid-glow" cx="256" cy="192" r="46"/><circle class="lucid-core" cx="256" cy="192" r="15"/><circle class="lucid-ring" cx="256" cy="192" r="15"/><circle class="lucid-glow" cx="256" cy="414" r="55"/><path class="lucid-star" d="M256,380 L264,406 L290,414 L264,422 L256,448 L248,422 L222,414 L248,406 Z"/><circle class="lucid-star" cx="256" cy="414" r="3.2"/></svg><span class="wordrow"><span class="word">Lucy</span><svg class="bstar" viewBox="0 0 24 24"><path d="M12 2C12.6 8 16 11.4 22 12C16 12.6 12.6 16 12 22C11.4 16 8 12.6 2 12C8 11.4 11.4 8 12 2Z"/></svg><span class="word">Ink</span></span></span>
       </div>
       <button class="iconbtn" id="homeSettings" aria-label="설정">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.4-2.3 1a7.6 7.6 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7.6 7.6 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7.6 7.6 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.6 7.6 0 0 0 1.7-1l2.3 1 2-3.4z"/></svg>
@@ -4156,7 +4198,7 @@
       <div class="hm-recent" id="homeRecent"></div>
     </div>
     <button class="fab" id="homeFab" aria-label="새 메모"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <div class="home-foot" id="homeFoot"><span class="hf-brand">Lumi <span class="hf-star">✦</span> Ink</span><span class="hf-dot">·</span><span class="hf-stats" id="hfStats"></span></div>
+    <div class="home-foot" id="homeFoot"><span class="hf-brand">Lucy <span class="hf-star">✦</span> Ink</span><span class="hf-dot">·</span><span class="hf-stats" id="hfStats"></span></div>
   </section>
 
   <!-- ============ PROJECT DETAIL ============ -->
@@ -4706,7 +4748,7 @@
   <div class="scrim for-sidebar" id="sidebarScrim"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sb-head">
-      <span class="brand-logo" id="sbLogo"><svg class="niblogo" viewBox="0 0 64 64"><path class="nib-body" d="M32 7C22 7 15 17 15 29c0 14 12 26 17 29 5-3 17-15 17-29 0-12-7-22-17-22z"/><circle class="nib-ink" cx="32" cy="25" r="6"/><rect class="nib-ink" x="30.6" y="28" width="2.8" height="23" rx="1.4"/><circle class="nib-tip" cx="32" cy="52" r="3.6"/></svg><span class="wordrow"><span class="word">Lumi</span><svg class="bstar" viewBox="0 0 24 24"><path d="M12 2C12.6 8 16 11.4 22 12C16 12.6 12.6 16 12 22C11.4 16 8 12.6 2 12C8 11.4 11.4 8 12 2Z"/></svg><span class="word">Ink</span></span></span>
+      <span class="brand-logo" id="sbLogo"><svg class="lucidlogo" viewBox="0 0 512 512" aria-hidden="true"><path class="lucid-bg" d="M256,20 C420,20 492,92 492,256 C492,420 420,492 256,492 C92,492 20,420 20,256 C20,92 92,20 256,20 Z"/><circle class="lucid-spark" cx="110" cy="110" r="2.5" opacity=".5"/><circle class="lucid-spark" cx="150" cy="380" r="2" opacity=".35"/><circle class="lucid-spark" cx="400" cy="150" r="2.2" opacity=".4"/><circle class="lucid-spark" cx="420" cy="360" r="1.8" opacity=".3"/><polygon class="lucid-top-l" points="256,90 196,112 256,150"/><polygon class="lucid-top-r" points="256,90 316,112 256,150"/><polygon class="lucid-top-l" points="196,112 156,172 256,150"/><polygon class="lucid-top-r" points="316,112 356,172 256,150"/><polygon class="lucid-mid-l" points="156,172 146,232 256,150"/><polygon class="lucid-mid-r" points="356,172 366,232 256,150"/><polygon class="lucid-mid-l" points="146,232 256,262 256,150"/><polygon class="lucid-mid-r" points="366,232 256,262 256,150"/><polygon class="lucid-low-l" points="146,232 182,314 256,262"/><polygon class="lucid-low-r" points="366,232 330,314 256,262"/><polygon class="lucid-low-l" points="182,314 256,436 256,262"/><polygon class="lucid-low-r" points="330,314 256,436 256,262"/><g fill="none" stroke-linejoin="round" stroke-linecap="round"><g class="lucid-line-soft" stroke-width="3.2"><path d="M256,90 L196,112 L156,172 L146,232 L182,314 L256,436 L330,314 L366,232 L356,172 L316,112 Z"/><path d="M196,112 L256,150 L316,112"/><path d="M146,232 L256,150 L366,232"/><path d="M146,232 L256,262 L366,232"/><path d="M182,314 L256,262 L330,314"/></g><g class="lucid-line-core" stroke-width="1.1"><path d="M256,90 L196,112 L156,172 L146,232 L182,314 L256,436 L330,314 L366,232 L356,172 L316,112 Z"/><path d="M196,112 L256,150 L316,112"/><path d="M146,232 L256,150 L366,232"/><path d="M146,232 L256,262 L366,232"/><path d="M182,314 L256,262 L330,314"/></g></g><line class="lucid-stem-soft" x1="256" y1="208" x2="256" y2="378" stroke-width="9" stroke-linecap="round"/><line class="lucid-stem-core" x1="256" y1="208" x2="256" y2="378" stroke-width="3" stroke-linecap="round"/><circle class="lucid-glow" cx="256" cy="192" r="46"/><circle class="lucid-core" cx="256" cy="192" r="15"/><circle class="lucid-ring" cx="256" cy="192" r="15"/><circle class="lucid-glow" cx="256" cy="414" r="55"/><path class="lucid-star" d="M256,380 L264,406 L290,414 L264,422 L256,448 L248,422 L222,414 L248,406 Z"/><circle class="lucid-star" cx="256" cy="414" r="3.2"/></svg><span class="wordrow"><span class="word">Lucy</span><svg class="bstar" viewBox="0 0 24 24"><path d="M12 2C12.6 8 16 11.4 22 12C16 12.6 12.6 16 12 22C11.4 16 8 12.6 2 12C8 11.4 11.4 8 12 2Z"/></svg><span class="word">Ink</span></span></span>
     </div>
     <div class="searchbar sb-searchbar" id="sbSearchbar">
       <input id="sbSearch" placeholder="검색" autocapitalize="off" autocorrect="off" enterkeyhint="search">
@@ -4902,7 +4944,7 @@
 <script>
 "use strict";
 /* ============================================================
-   루미잉크 (Lumink) — 1차 셸
+   루시잉크 (LucyInk) — 1차 셸
    데이터: IndexedDB (projects, notes) / 마이그레이션 포함
    ============================================================ */
 (function () {

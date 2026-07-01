@@ -129,7 +129,7 @@ small#hint{
 
   <div class="mark-stage">
     <div class="vial-glow"></div>
-    <img src="./luci-icon-512.png" alt="루시잉크 아이콘">
+    <img src="./lucid_drop_ink_512.png" alt="루시잉크 ink 아이콘">
     <div class="vial-tag">
       <svg viewBox="0 0 46 58" xmlns="http://www.w3.org/2000/svg">
         <path d="M17 3h12v11.5c5 3 8 9 8 15.5 0 12-6 23-15 23S7 42 7 30c0-6.5 3-12.5 8-15.5V3Z" fill="none" stroke="#74b9ff" stroke-width="2" stroke-linejoin="round"/>
@@ -149,7 +149,7 @@ small#hint{
 
   <small id="hint">설치 후 아이콘을 바꾸려면 기존 앱을 제거한 뒤 다른 아이콘으로 다시 설치해 주세요.</small>
 
-  <div class="divider-note"><span class="ln"></span><span>LUMI INK</span><span class="ln"></span></div>
+  <div class="divider-note"><span class="ln"></span><span>LUCYINK</span><span class="ln"></span></div>
 </main>
 <script>let promptEvent=null;const btn=document.getElementById('installBtn'),hint=document.getElementById('hint');window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();promptEvent=e;});btn.addEventListener('click',async()=>{if(promptEvent){promptEvent.prompt();await promptEvent.userChoice;promptEvent=null;return;}hint.textContent='브라우저 메뉴에서 “앱 설치” 또는 “홈 화면에 추가”를 선택해 주세요.';});window.addEventListener('appinstalled',()=>{hint.textContent='설치가 완료됐어요. 이제 루시잉크를 실행해 보세요.';btn.disabled=true;btn.textContent='설치 완료';});</script>
 </body></html>

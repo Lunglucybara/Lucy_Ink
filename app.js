@@ -1,6 +1,6 @@
-"use strict";
+﻿"use strict";
 /* ============================================================
-   루미잉크 (Lumink) — app logic (1차)
+   루시잉크 (Lumink) — app logic (1차)
    ============================================================ */
 (function () {
   const L = window.__lumink;
@@ -99,7 +99,7 @@
   // v65.8: 홈 단일 바로가기를 확장한 기능 바로가기 목록입니다.
   // 설정 화면의 각 행과 1:1로 연결해, 자주 쓰는 기능을 퀵 메뉴에서 바로 실행할 수 있어요.
   const QUICK_MENU_FUNCTIONS = Object.freeze([
-    { id:"home", group:"빠른 이동", label:"홈 바로가기", meta:"루미잉크 첫 화면으로 이동" },
+    { id:"home", group:"빠른 이동", label:"홈 바로가기", meta:"루시잉크 첫 화면으로 이동" },
     { id:"settings", group:"빠른 이동", label:"설정 바로가기", meta:"설정 화면을 바로 열기" },
     { id:"app-reload", group:"빠른 이동", label:"앱 새로고침", meta:"저장한 뒤 현재 화면을 다시 불러오기" },
     { id:"setting-theme", group:"화면 설정", label:"테마 전환", meta:"밝게 · 어둡게 즉시 전환" },
@@ -465,7 +465,7 @@
     openModal(`<h3>저장공간</h3><p class="m-sub"><b>${esc(val)}</b><br>${esc(sub)}<br><br>표시 용량은 이 사이트가 브라우저에 저장한 데이터와 자동 백업을 포함해요. 이미지가 많을수록 자동 백업도 함께 커집니다.</p><div class="m-row"><button class="m-btn primary" id="storageClose">확인</button></div>`);
     $on("storageClose", "click", closeModal);
   }
-  async function openInstallStartPage() { await flushPending(); window.location.href = "./lumi-ink-get-started.html?from=app"; }
+  async function openInstallStartPage() { await flushPending(); window.location.href = "./luci-ink-get-started.html?from=app"; }
   async function openManualPage() { await flushPending(); window.location.href = "./Lumi_Ink_Manual_1.html?from=app"; }
   async function runQuickMenuFunction(functionId) {
     const id = quickMenuFunction(functionId).id;
@@ -676,7 +676,7 @@
     const available = QUICK_MENU_ICON_LIBRARY.filter((item) => active === "all" || item.category === active);
     const tabs = QUICK_MENU_ICON_CATEGORIES.map(([key, label]) => `<button type="button" class="qm-library-tab ${key === active ? "is-active" : ""}" data-qm-library-tab="${key}">${label}</button>`).join("");
     const cards = available.map((item) => quickMenuIconCardMarkup(item, slot.libraryIconId === item.id, "quick")).join("");
-    openModal(`<h3>퀵메뉴 아이콘 모음</h3><p class="m-sub">루미잉크 벡터 아이콘 ${QUICK_MENU_ICON_LIBRARY.length}종입니다. 선택하면 해당 슬롯의 코드 아이콘과 사용자 썸네일은 해제되고, 테마에 반응하는 벡터 아이콘으로 바뀝니다.</p><div class="qm-library-tabs">${tabs}</div><div class="qm-library-grid">${cards}</div><div class="m-row"><button class="m-btn" id="qmLibraryBack">뒤로</button></div>`);
+    openModal(`<h3>퀵메뉴 아이콘 모음</h3><p class="m-sub">루시잉크 벡터 아이콘 ${QUICK_MENU_ICON_LIBRARY.length}종입니다. 선택하면 해당 슬롯의 코드 아이콘과 사용자 썸네일은 해제되고, 테마에 반응하는 벡터 아이콘으로 바뀝니다.</p><div class="qm-library-tabs">${tabs}</div><div class="qm-library-grid">${cards}</div><div class="m-row"><button class="m-btn" id="qmLibraryBack">뒤로</button></div>`);
     $("modalBox").querySelectorAll("[data-qm-library-tab]").forEach((button) => button.addEventListener("click", () => openQuickMenuBuiltinIconPicker(index, button.dataset.qmLibraryTab)));
     $("modalBox").querySelectorAll("[data-qm-library-icon]").forEach((button) => button.addEventListener("click", async () => {
       const id = quickMenuLibraryIconId(button.dataset.qmLibraryIcon); if (!id) return;
@@ -2459,7 +2459,7 @@
     const data = normalizeRegexData((activeRegexSession(id) && $("regexFind")) ? regexDataFromEditor() : (n.data || {}));
     return {
       id: data.id || n.id,
-      scriptName: data.scriptName || n.title || "Lumink Regex",
+      scriptName: data.scriptName || n.title || "LucyInk Regex",
       findRegex: regexSetGlobalInFind(data.findRegex, data.global),
       replaceString: data.replaceString,
       trimStrings: data.trimStrings,
@@ -3976,7 +3976,7 @@
     return { maskText, designs, style: designs[0].style };
   }
   function normalizeLogTemplate(raw) {
-    if (!raw || raw.kind !== "lumink-log-template" || Number(raw.schemaVersion) !== 1) throw new Error("루미잉크 로그 템플릿 v1 형식이 아니에요");
+    if (!raw || raw.kind !== "lumink-log-template" || Number(raw.schemaVersion) !== 1) throw new Error("루시잉크 로그 템플릿 v1 형식이 아니에요");
     const id = String(raw.id || "").trim();
     if (!/^[a-z0-9][a-z0-9-]{2,63}$/i.test(id)) throw new Error("템플릿 id는 영문·숫자·하이픈 3~64자로 작성해 주세요");
     const styles = {}, srcStyles = raw.styles && typeof raw.styles === "object" ? raw.styles : {};
@@ -4479,7 +4479,7 @@
     if (st.curNoteId === id) await flushLog();
     const n = getNote(id); if (!n || n.type !== "log") return;
     const payload = JSON.stringify({ app: "lumink", kind: "log", title: n.title, data: normalizeLogData(n.data) }).replace(/</g, "\\u003c");
-    const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="Lumink"><meta name="lumink-kind" content="log"><title>${esc(n.title || "로그")}</title></head><body style="margin:0;padding:24px;background:#f4f5f8">${renderLogInlineHtml(n)}<script type="application/json" id="lumink-log">${payload}<\/script></body></html>`;
+    const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="LucyInk"><meta name="lumink-kind" content="log"><title>${esc(n.title || "로그")}</title></head><body style="margin:0;padding:24px;background:#f4f5f8">${renderLogInlineHtml(n)}<script type="application/json" id="lumink-log">${payload}<\/script></body></html>`;
     downloadDoc(doc, `${((n.title || "log").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 50) || "log")}.html`, "text/html"); toast("꾸며진 로그 HTML을 저장했어요");
   }
 
@@ -6380,7 +6380,7 @@
       const items = QUICK_MENU_ICON_LIBRARY.filter((item) => activeCat === "all" || item.category === activeCat);
       content = `<div class="project-icon-cats">${cats}</div><div class="project-icon-library-grid">${items.map((item) => quickMenuIconCardMarkup(item, p.iconLibraryId === item.id && !p.icon, "project")).join("")}</div>`;
     }
-    openModal(`<h3>프로젝트 썸네일</h3><p class="m-sub">${esc(p.name)} · 기본 이미지와 루미잉크 아이콘 중에서 선택할 수 있어요.</p>${tabBar}${content}<div class="m-row"><button class="m-btn" id="iconClose">닫기</button></div>`);
+    openModal(`<h3>프로젝트 썸네일</h3><p class="m-sub">${esc(p.name)} · 기본 이미지와 루시잉크 아이콘 중에서 선택할 수 있어요.</p>${tabBar}${content}<div class="m-row"><button class="m-btn" id="iconClose">닫기</button></div>`);
     $("modalBox").querySelectorAll("[data-project-icon-tab]").forEach((el) => el.addEventListener("click", () => showIconPicker(pid, el.dataset.projectIconTab, activeCat)));
     $("modalBox").querySelectorAll("[data-project-icon-cat]").forEach((el) => el.addEventListener("click", () => showIconPicker(pid, "library", el.dataset.projectIconCat)));
     $("modalBox").querySelectorAll(".icon-opt[data-icon]").forEach((el) => el.addEventListener("click", async () => {
@@ -6638,10 +6638,10 @@
         const ns = st.notes.filter((n) => n.projectId === p.id);
         return `<section><h2>${esc(p.name)}</h2>${p.description ? `<p class="d">${esc(p.description)}</p>` : ""}<p class="c">메모 ${ns.length}개</p><ul>${ns.map((n) => `<li>${esc(n.title || "(제목 없음)")} <em>${TYPE_LABEL[n.type] || n.type}</em></li>`).join("")}</ul></section>`;
       }).join("");
-      const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>루미잉크 백업 ${new Date().toLocaleDateString("ko")}</title>
+      const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>루시잉크 백업 ${new Date().toLocaleDateString("ko")}</title>
 <style>body{font-family:-apple-system,"Noto Sans KR",sans-serif;max-width:720px;margin:0 auto;padding:34px 20px;line-height:1.6;color:#1c1b19;background:#faf9f7}h1{font-size:23px;margin:0 0 4px}h2{font-size:17px;margin:22px 0 6px;border-bottom:1px solid #e7e3da;padding-bottom:5px}em{color:#9a948a;font-style:normal;font-size:.82em;margin-left:4px}ul{margin:6px 0 0;padding-left:20px}li{margin:2px 0}.note{color:#a09a8f;font-size:13px}.d{color:#666;margin:2px 0}.c{color:#9a948a;font-size:13px;margin:2px 0}</style></head>
 <body><h1>루미 ✦ 잉크 백업</h1><p class="note">${new Date().toLocaleString("ko")} · 프로젝트 ${st.projects.length}개 · 메모 ${st.notes.length}개</p>${summary}
-<p class="note" style="margin-top:26px">이 파일을 루미잉크 → 설정 → 백업 복원에서 가져오면 데이터가 복원됩니다.</p>
+<p class="note" style="margin-top:26px">이 파일을 루시잉크 → 설정 → 백업 복원에서 가져오면 데이터가 복원됩니다.</p>
 <script type="application/json" id="lumink-backup">${json}<\/script></body></html>`;
       downloadDoc(doc, `lumink-backup-${dateStamp()}.html`, "text/html");
       toast("백업을 저장했어요");
@@ -7101,7 +7101,7 @@
     const title = n.title || "메모", html = noteHtml(n);
     const doc = `<!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="generator" content="Lumink"><meta name="lumink-created" content="${new Date(n.createdAt).toISOString()}">
+<meta name="generator" content="LucyInk"><meta name="lumink-created" content="${new Date(n.createdAt).toISOString()}">
 <title>${esc(title)}</title>
 <style>body{margin:0 auto;max-width:760px;padding:32px 20px;line-height:1.7;font-family:-apple-system,"Noto Sans KR",sans-serif;color:#1c1b19;word-break:break-word}img{max-width:100%;height:auto}a{color:#2f6fd0}a.lumi-link{color:#2f6fd0;text-decoration:none;font-weight:600;background:rgba(47,111,208,.09);border:1px solid rgba(47,111,208,.3);padding:1px 7px;border-radius:7px}blockquote{border-left:3px solid #2f6fd0;margin:8px 0;padding:2px 0 2px 14px;color:#555}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px}pre{background:#f0ede6;padding:12px;border-radius:8px;overflow-x:auto}</style>
 </head><body>
@@ -7142,8 +7142,8 @@ ${html}
       const noteList = notes.length
         ? `<ul>${notes.map((note) => `<li><span>${esc(note.title || "(제목 없음)")}</span><em>${esc(TYPE_LABEL[note.type] || note.type)}</em></li>`).join("")}</ul>`
         : '<p class="empty">이 프로젝트에는 메모가 없습니다.</p>';
-      const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="Lumink"><meta name="lumink-kind" content="project"><title>${esc(project.name)} · 루미잉크 프로젝트</title>
-<style>body{font-family:-apple-system,"Noto Sans KR",sans-serif;max-width:720px;margin:0 auto;padding:36px 20px 64px;line-height:1.65;color:#1d2330;background:#f7f8fb}main{background:#fff;border:1px solid #dfe4ee;border-radius:18px;padding:24px;box-shadow:0 8px 28px rgba(38,56,92,.1)}h1{margin:0 0 6px;font-size:24px}.meta,.hint,.empty{color:#6d7687;font-size:13px}.tags{margin:15px 0;color:#49556a}.tags span{display:inline-block;margin:0 5px 5px 0;padding:4px 10px;border-radius:999px;background:#edf2ff;color:#405b95;font-size:12px}ul{list-style:none;padding:0;margin:20px 0 0}li{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-top:1px solid #edf0f5}li span{min-width:0;overflow-wrap:anywhere}em{flex:0 0 auto;color:#7c8799;font-style:normal;font-size:12px}.hint{margin-top:24px;padding-top:16px;border-top:1px solid #edf0f5}</style></head><body><main><h1>${esc(project.name)}</h1><p class="meta">내보낸 시각 ${esc(new Date(payload.exportedAt).toLocaleString("ko"))} · 메모 ${notes.length}개 · 첨부 ${files.length}개</p>${project.description ? `<div class="tags">${String(project.description).split(",").map((tag) => tag.trim()).filter(Boolean).map((tag) => `<span>${esc(tag)}</span>`).join("")}</div>` : ""}<p class="meta">${countText}</p>${noteList}<p class="hint">루미잉크의 사이드바 → 열기에서 이 파일을 선택하면 새 프로젝트로 가져올 수 있습니다.</p></main><script type="application/json" id="lumink-project">${json}<\/script></body></html>`;
+      const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="LucyInk"><meta name="lumink-kind" content="project"><title>${esc(project.name)} · 루시잉크 프로젝트</title>
+<style>body{font-family:-apple-system,"Noto Sans KR",sans-serif;max-width:720px;margin:0 auto;padding:36px 20px 64px;line-height:1.65;color:#1d2330;background:#f7f8fb}main{background:#fff;border:1px solid #dfe4ee;border-radius:18px;padding:24px;box-shadow:0 8px 28px rgba(38,56,92,.1)}h1{margin:0 0 6px;font-size:24px}.meta,.hint,.empty{color:#6d7687;font-size:13px}.tags{margin:15px 0;color:#49556a}.tags span{display:inline-block;margin:0 5px 5px 0;padding:4px 10px;border-radius:999px;background:#edf2ff;color:#405b95;font-size:12px}ul{list-style:none;padding:0;margin:20px 0 0}li{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-top:1px solid #edf0f5}li span{min-width:0;overflow-wrap:anywhere}em{flex:0 0 auto;color:#7c8799;font-style:normal;font-size:12px}.hint{margin-top:24px;padding-top:16px;border-top:1px solid #edf0f5}</style></head><body><main><h1>${esc(project.name)}</h1><p class="meta">내보낸 시각 ${esc(new Date(payload.exportedAt).toLocaleString("ko"))} · 메모 ${notes.length}개 · 첨부 ${files.length}개</p>${project.description ? `<div class="tags">${String(project.description).split(",").map((tag) => tag.trim()).filter(Boolean).map((tag) => `<span>${esc(tag)}</span>`).join("")}</div>` : ""}<p class="meta">${countText}</p>${noteList}<p class="hint">루시잉크의 사이드바 → 열기에서 이 파일을 선택하면 새 프로젝트로 가져올 수 있습니다.</p></main><script type="application/json" id="lumink-project">${json}<\/script></body></html>`;
       const safeName = (project.name || "project").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 50) || "project";
       downloadDoc(doc, `${safeName}-lumink-project-${dateStamp()}.html`, "text/html");
       toast(`프로젝트를 저장했어요 · 메모 ${notes.length}개`);
@@ -7228,7 +7228,7 @@ ${html}
     const payload = JSON.stringify({ app: "lumink", kind: "persona", title: n.title, data: d }).replace(/</g, "\\u003c");
     const doc = `<!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="generator" content="Lumink"><meta name="lumink-kind" content="persona">
+<meta name="generator" content="LucyInk"><meta name="lumink-kind" content="persona">
 <title>${esc(n.title || "페르소나")}</title>
 <style>${personaExportCSS(theme === "dark" ? "dark" : "light")}</style>
 </head><body>
@@ -7238,7 +7238,7 @@ ${portrait}
 ${langBlock(d.ko, "한국어")}
 ${langBlock(d.en, "English")}
 ${gallery}
-<div class="foot">Lumi Ink · 페르소나 카드</div>
+<div class="foot">LucyInk · 페르소나 카드</div>
 </main>
 <script type="application/json" id="lumink-persona">${payload}<\/script>
 </body></html>`;
@@ -7286,7 +7286,7 @@ ${gallery}
     const payload = JSON.stringify({ app: "lumink", kind: exportKind, title: n.title, data: exportData }).replace(/</g, "\\u003c");
     const css = personaExportCSS(theme === "dark" ? "dark" : "light") + `.cnav{display:flex;gap:8px;overflow:auto;margin:0 0 20px;padding:3px 1px 5px}.cnav button{border:1px solid ${personaExportPalette(theme === "dark" ? "dark" : "light").line};background:transparent;color:inherit;border-radius:12px;padding:6px 9px;display:flex;gap:7px;align-items:center;cursor:pointer;white-space:nowrap;font:inherit;font-size:12px}.cnav button.active{border-color:${personaExportPalette(theme === "dark" ? "dark" : "light").chipColor};background:${personaExportPalette(theme === "dark" ? "dark" : "light").chipBg};color:${personaExportPalette(theme === "dark" ? "dark" : "light").chipColor}}.cnav img,.nav-placeholder{width:28px;height:28px;border-radius:8px;object-fit:cover;background:${personaExportPalette(theme === "dark" ? "dark" : "light").panel2};display:grid;place-items:center}.char-page[hidden]{display:none}.creator{margin:0 0 28px}.creator-label{display:inline-block;font-weight:800;font-size:11px;letter-spacing:.11em;color:${personaExportPalette(theme === "dark" ? "dark" : "light").chipColor};background:${personaExportPalette(theme === "dark" ? "dark" : "light").chipBg};padding:5px 12px;border-radius:999px;margin-bottom:11px}.creator .detail{border-left:3px solid ${personaExportPalette(theme === "dark" ? "dark" : "light").chipColor}}.creator-rich img{max-width:100%;height:auto;border-radius:8px}.creator-rich pre{overflow:auto}.creator-rich a{color:${personaExportPalette(theme === "dark" ? "dark" : "light").chipColor}}`;
     const doc = `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Lumink"><meta name="lumink-kind" content="${exportKind}"><title>${esc(n.title || fallbackTitle)}</title><style>${css}</style></head><body><main class="wrap"><h1 class="ptitle">${esc(n.title || fallbackTitle)}</h1>${nav}${pageHtml}<div class="foot">Lumi Ink · ${footLabel}</div></main><script type="application/json" id="lumink-character">${payload}<\/script><script>(function(){var pages=[].slice.call(document.querySelectorAll('.char-page')),buttons=[].slice.call(document.querySelectorAll('.cnav button'));function show(i){pages.forEach(function(p,x){p.hidden=x!==i});buttons.forEach(function(b,x){b.classList.toggle('active',x===i)});window.scrollTo({top:0,behavior:'smooth'})}buttons.forEach(function(b){b.addEventListener('click',function(){show(+b.dataset.page)})})})();<\/script></body></html>`;
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="LucyInk"><meta name="lumink-kind" content="${exportKind}"><title>${esc(n.title || fallbackTitle)}</title><style>${css}</style></head><body><main class="wrap"><h1 class="ptitle">${esc(n.title || fallbackTitle)}</h1>${nav}${pageHtml}<div class="foot">LucyInk · ${footLabel}</div></main><script type="application/json" id="lumink-character">${payload}<\/script><script>(function(){var pages=[].slice.call(document.querySelectorAll('.char-page')),buttons=[].slice.call(document.querySelectorAll('.cnav button'));function show(i){pages.forEach(function(p,x){p.hidden=x!==i});buttons.forEach(function(b,x){b.classList.toggle('active',x===i)});window.scrollTo({top:0,behavior:'smooth'})}buttons.forEach(function(b){b.addEventListener('click',function(){show(+b.dataset.page)})})})();<\/script></body></html>`;
     const name = ((n.title || exportKind).replace(/[\\/:*?"<>|]+/g, "_").slice(0, 50) || exportKind) + ".html";
     const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -7664,7 +7664,7 @@ ${gallery}
     const status = parseError
       ? "JSON 문법을 확인하지 못했어요. 구조형 가져오기는 할 수 없지만 원문은 열어 볼 수 있어요."
       : `원본 ${raw.length.toLocaleString("ko-KR")}자 · 메모 보기 또는 원본 작업실 중 선택하세요.`;
-    const structured = `${packagePreview ? `<div class="type-card" id="jsonAsProject"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M3 10h18"/></svg></div><div><div class="tc-name">루미잉크 프로젝트로 가져오기</div><div class="tc-desc">프로젝트 · 메모 ${packagePreview.noteCount}개 · 첨부 ${packagePreview.fileCount}개</div></div></div>` : ""}${regexPreview ? `<div class="type-card" id="jsonAsRegex"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/></svg></div><div><div class="tc-name">정규식 작업실로 가져오기</div><div class="tc-desc">findRegex · replaceString · SillyTavern 옵션을 편집</div></div></div>` : ""}${worldInfoEntries.length ? `<div class="type-card" id="jsonAsWorldInfo"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M4 5.5c2.5-1 5.2-.6 8 1.2 2.8-1.8 5.5-2.2 8-1.2v13c-2.5-1-5.2-.6-8 1.2-2.8-1.8-5.5-2.2-8-1.2Z"/><path d="M12 6.7v13"/></svg></div><div><div class="tc-name">로어북으로 가져오기</div><div class="tc-desc">인식한 World Info 항목 ${worldInfoEntries.length}개를 로어북으로 생성</div></div></div>` : ""}`;
+    const structured = `${packagePreview ? `<div class="type-card" id="jsonAsProject"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M3 10h18"/></svg></div><div><div class="tc-name">루시잉크 프로젝트로 가져오기</div><div class="tc-desc">프로젝트 · 메모 ${packagePreview.noteCount}개 · 첨부 ${packagePreview.fileCount}개</div></div></div>` : ""}${regexPreview ? `<div class="type-card" id="jsonAsRegex"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/></svg></div><div><div class="tc-name">정규식 작업실로 가져오기</div><div class="tc-desc">findRegex · replaceString · SillyTavern 옵션을 편집</div></div></div>` : ""}${worldInfoEntries.length ? `<div class="type-card" id="jsonAsWorldInfo"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M4 5.5c2.5-1 5.2-.6 8 1.2 2.8-1.8 5.5-2.2 8-1.2v13c-2.5-1-5.2-.6-8 1.2-2.8-1.8-5.5-2.2-8-1.2Z"/><path d="M12 6.7v13"/></svg></div><div><div class="tc-name">로어북으로 가져오기</div><div class="tc-desc">인식한 World Info 항목 ${worldInfoEntries.length}개를 로어북으로 생성</div></div></div>` : ""}`;
     openModal(`<h3>JSON 열기</h3><p class="m-sub"><b>${esc(title)}</b><br>${esc(status)}</p>${structured}
       <div class="type-card" id="jsonAsFreeMemo"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M8 12h8M8 16h8"/></svg></div><div><div class="tc-name">메모로 내용 보기</div><div class="tc-desc">읽기 쉬운 들여쓰기로 정리 · 코드 블록 형태로 안전하게 표시</div></div></div>
       <div class="type-card" id="jsonAsHtmlSource"><div class="tc-ico"><svg viewBox="0 0 24 24"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/><path d="M13 4l-2 16"/></svg></div><div><div class="tc-name">코드 작업실로 원본 열기</div><div class="tc-desc">공백까지 보존 · JSON 원본을 그대로 편집·복사</div></div></div>
@@ -7858,7 +7858,7 @@ ${gallery}
   }
   function showProjectPackageImport(payload) {
     const preview = projectPackagePreview(payload);
-    if (!preview) { toast("올바른 루미잉크 프로젝트 파일이 아니에요"); return; }
+    if (!preview) { toast("올바른 루시잉크 프로젝트 파일이 아니에요"); return; }
     openModal(`<h3>프로젝트 불러오기</h3><p class="m-sub"><b>${esc(preview.project.name)}</b><br>메모 ${preview.noteCount}개 · 첨부 ${preview.fileCount}개</p><p class="m-sub">현재 데이터를 변경하지 않고 새 프로젝트로 가져옵니다. 같은 이름의 프로젝트가 있으면 이름에 ‘가져옴’ 표시가 붙습니다.</p><div class="m-row"><button class="m-btn" id="projectImportCancel">취소</button><button class="m-btn primary" id="projectImportOk">새 프로젝트로 가져오기</button></div>`);
     $on("projectImportCancel", "click", closeModal);
     $on("projectImportOk", "click", async () => {
@@ -7881,7 +7881,7 @@ ${gallery}
     } catch (e) {}
     if (projectTag) {
       try { showProjectPackageImport(JSON.parse(projectTag.textContent)); }
-      catch (e) { toast("올바른 루미잉크 프로젝트 파일이 아니에요"); }
+      catch (e) { toast("올바른 루시잉크 프로젝트 파일이 아니에요"); }
       return;
     }
     pickTargetProject(st.curProjectId, async (pid) => {
@@ -9019,7 +9019,7 @@ ${gallery}
   }
   const IDEA_IMAGE_BACKGROUND_PRESETS = Object.freeze(readIdeaImageBackgroundRegistry(IDEA_TEMPLATE_REGISTRY.imageBackgrounds));
   if (typeof console !== "undefined" && IDEA_TEMPLATE_REGISTRY.imageBackgrounds && !Object.keys(IDEA_IMAGE_BACKGROUND_PRESETS).length) {
-    console.warn("[Lumi Ink] 이미지 배경 레지스트리를 읽지 못했습니다. 키/경로 형식을 확인하세요.");
+    console.warn("[LucyInk] 이미지 배경 레지스트리를 읽지 못했습니다. 키/경로 형식을 확인하세요.");
   }
   const IDEA_BG_TEMPLATES = Object.freeze({ ...IDEA_BUILTIN_BG_TEMPLATES, ...readIdeaTemplateRegistry(IDEA_TEMPLATE_REGISTRY.backgrounds) });
   const IDEA_NOTE_TEMPLATES = Object.freeze({ ...IDEA_BUILTIN_NOTE_TEMPLATES, ...readIdeaTemplateRegistry(IDEA_TEMPLATE_REGISTRY.noteStyles || IDEA_TEMPLATE_REGISTRY.notes) });
@@ -9219,7 +9219,7 @@ ${gallery}
     runicLine: { label:"룬", desc:"직선 룬 문자가 새겨진 구분선" },
     pentacle: { label:"펜타클", desc:"원 안에 오망성을 둔 오컬트 구분선" }
   });
-  const IDEA_DIVIDER_TEMPLATE_GUIDE = `# Lumi Ink 아이디어 보드 구분선 템플릿 가이드
+  const IDEA_DIVIDER_TEMPLATE_GUIDE = `# LucyInk 아이디어 보드 구분선 템플릿 가이드
 
 구분선 요소는 \`kind: "divider"\`와 \`dividerStyle\` 키로 구분됩니다.
 
@@ -11221,7 +11221,7 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
       const items=d.items.slice().sort((a,b)=>a.z-b.z).map((item)=>renderIdeaExportItem(item,n,fileMap)).join("") || '<div class="idea-canvas-empty"><div><b>빈 아이디어 보드</b>아직 붙인 조각이 없습니다.</div></div>';
       const css=(ideaExportBaseCss()+"\n"+ideaExportTightCss()+"\n"+await collectIdeaExportStyles()).replace(/<\/style/gi,"");
       const json=JSON.stringify(payload).replace(/</g,"\\u003c");
-      const doc=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="Lumink"><meta name="lumink-kind" content="idea"><title>${esc(n.title || "아이디어 보드")}</title><style>${css}</style></head><body><main class="idea-export"><header class="idea-export-head"><div><h1>${esc(n.title || "아이디어 보드")}</h1><p>루미잉크 아이디어 보드 · ${esc(new Date(payload.exportedAt).toLocaleString("ko"))}</p></div><p>조각 ${d.items.length}개 · 첨부 ${payload.files.length}개</p></header><div class="idea-export-stage"><section class="idea-canvas${imageClass}" data-background="${esc(activeBackground)}" style="${esc(imageStyle)}">${items}</section></div></main><script type="application/json" id="lumink-idea">${json}<\/script></body></html>`;
+      const doc=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="LucyInk"><meta name="lumink-kind" content="idea"><title>${esc(n.title || "아이디어 보드")}</title><style>${css}</style></head><body><main class="idea-export"><header class="idea-export-head"><div><h1>${esc(n.title || "아이디어 보드")}</h1><p>루시잉크 아이디어 보드 · ${esc(new Date(payload.exportedAt).toLocaleString("ko"))}</p></div><p>조각 ${d.items.length}개 · 첨부 ${payload.files.length}개</p></header><div class="idea-export-stage"><section class="idea-canvas${imageClass}" data-background="${esc(activeBackground)}" style="${esc(imageStyle)}">${items}</section></div></main><script type="application/json" id="lumink-idea">${json}<\/script></body></html>`;
       downloadDoc(doc,`${ideaExportSafeName(n.title)}.html`,"text/html"); toast("꾸며진 아이디어 보드 HTML을 저장했어요");
     } catch(e) { console.warn("idea export",e); toast("아이디어 보드 HTML 내보내기에 실패했어요"); }
   }
@@ -11286,7 +11286,7 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
       const css = (ideaExportBaseCss()+"\n"+ideaExportTightCss()+"\n"+await collectIdeaExportStyles()).replace(/<\/style/gi,"");
       const json = JSON.stringify(payload).replace(/</g,"\\u003c");
       const suffix = visual.mode === "visible" ? "-visible" : "-full";
-      const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="Lumink"><meta name="lumink-kind" content="idea"><title>${esc(n.title || "아이디어 보드")}</title><style>${css}</style></head><body><main class="idea-export"><header class="idea-export-head"><div><h1>${esc(n.title || "아이디어 보드")}</h1><p>루미잉크 아이디어 보드 · ${esc(new Date(payload.exportedAt).toLocaleString("ko"))} · 표시: ${esc(visual.label)}</p></div><p>조각 ${visual.d.items.length}개 · 첨부 ${payload.files.length}개</p></header>${visual.stage}</main><script type="application/json" id="lumink-idea">${json}<\/script></body></html>`;
+      const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="generator" content="LucyInk"><meta name="lumink-kind" content="idea"><title>${esc(n.title || "아이디어 보드")}</title><style>${css}</style></head><body><main class="idea-export"><header class="idea-export-head"><div><h1>${esc(n.title || "아이디어 보드")}</h1><p>루시잉크 아이디어 보드 · ${esc(new Date(payload.exportedAt).toLocaleString("ko"))} · 표시: ${esc(visual.label)}</p></div><p>조각 ${visual.d.items.length}개 · 첨부 ${payload.files.length}개</p></header>${visual.stage}</main><script type="application/json" id="lumink-idea">${json}<\/script></body></html>`;
       downloadDoc(doc,`${ideaExportSafeName(n.title)}${suffix}.html`,"text/html");
       toast(`아이디어 보드 HTML을 저장했어요 · ${visual.label}`);
     } catch(e) { console.warn("idea export",e); toast("아이디어 보드 HTML 내보내기에 실패했어요"); }
