@@ -9,7 +9,22 @@
           noteHtml, notesOf, getProject, getNote } = L.h;
   const { CHIP, TYPE_LABEL, openDB, store, getAll, put, del, transact } = L;
   function $on(id, type, fn, opts) { const el = $(id); if (el) el.addEventListener(type, fn, opts); else console.warn("[bind] #" + id + " not found — skipped"); }
-  const ICONS = window.__luminkIcons || [];
+  const LEGACY_PROJECT_ICONS = window.__luminkIcons || [];
+  const PROJECT_THUMBNAILS = Object.freeze([
+    { id: "lucid-ink", name: "Lucid Ink", data: "./square_thumbs/png/lucid_drop_ink_square_1024.png" },
+    { id: "lucid-violet", name: "Lucid Violet", data: "./square_thumbs/png/lucid_drop_violet_square_1024.png" },
+    { id: "lucid-rose", name: "Lucid Rose", data: "./square_thumbs/png/lucid_drop_rose_square_1024.png" },
+    { id: "lucid-gold", name: "Lucid Gold", data: "./square_thumbs/png/lucid_drop_gold_square_1024.png" },
+    { id: "lucid-forest", name: "Lucid Forest", data: "./square_thumbs/png/lucid_drop_forest_square_1024.png" },
+    { id: "lucid-pastel-blue", name: "Pastel Blue", data: "./square_thumbs/png/lucid_drop_pastel-blue_square_1024.png" },
+    { id: "lucid-pastel-pink", name: "Pastel Pink", data: "./square_thumbs/png/lucid_drop_pastel-pink_square_1024.png" },
+    { id: "lucid-pastel-green", name: "Pastel Green", data: "./square_thumbs/png/lucid_drop_pastel-green_square_1024.png" },
+    { id: "lucid-pastel-purple", name: "Pastel Purple", data: "./square_thumbs/png/lucid_drop_pastel-purple_square_1024.png" },
+    { id: "lucid-pastel-yellow", name: "Pastel Yellow", data: "./square_thumbs/png/lucid_drop_pastel-yellow_square_1024.png" }
+  ]);
+  const PROJECT_THUMBNAIL_URLS = new Set(PROJECT_THUMBNAILS.map((item) => item.data));
+  const LEGACY_PROJECT_ICON_DATA = new Set(LEGACY_PROJECT_ICONS.map((item) => item && item.data).filter(Boolean));
+  const ICONS = PROJECT_THUMBNAILS;
   const DEFAULT_ICON = ICONS[0] ? ICONS[0].data : null;
   const FRAMES = window.__luminkFrames || [];
   const FRAME_COLORS = [
@@ -81,6 +96,21 @@
     return frameSvgMarkup(p.frame, p.frameColor);
   }
   function getOne(name, id) { return new Promise((res, rej) => { const r = store(name, "readonly").get(id); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+  function isBundledProjectThumbnail(value) {
+    return typeof value === "string" && PROJECT_THUMBNAIL_URLS.has(value.trim());
+  }
+  function isProjectUploadImage(value) {
+    if (typeof value !== "string") return false;
+    const src = value.trim();
+    return /^data:image\/(?:png|jpe?g|gif|webp|avif);base64,/i.test(src) && src.length <= 32 * 1024 * 1024;
+  }
+  function normalizeProjectIconSource(value, fallback) {
+    const src = typeof value === "string" ? value.trim() : "";
+    if (isBundledProjectThumbnail(src)) return src;
+    if (LEGACY_PROJECT_ICON_DATA.has(src)) return fallback || DEFAULT_ICON;
+    if (isProjectUploadImage(src)) return src;
+    return fallback || DEFAULT_ICON;
+  }
 
 
 
@@ -711,6 +741,637 @@
   const draftPrompted = new Set();
   function jsonCopy(v) { try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; } }
   function jsonSame(a, b) { try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; } }
+
+  /* ---------- diary app mode ---------- */
+  const APP_MODE_KEY = "lucyInkAppMode";
+  const DIARY_SETTING_ID = "diaryApp";
+  const DIARY_WIDGETS = Object.freeze([
+    { type: "dday", label: "디데이", icon: "D" },
+    { type: "calendar", label: "달력", icon: "C" },
+    { type: "daily", label: "일간 스케줄", icon: "1" },
+    { type: "weekly", label: "주간 스케줄", icon: "7" },
+    { type: "diaries", label: "다이어리 목록", icon: "F" },
+    { type: "todos", label: "투두리스트", icon: "T" },
+    { type: "pomodoro", label: "뽀모도로", icon: "P" }
+  ]);
+  const DIARY_WIDGET_BY_TYPE = new Map(DIARY_WIDGETS.map((item) => [item.type, item]));
+  const DIARY_WIDGET_SIZES = new Set(["small", "medium", "wide", "large"]);
+  const DIARY_DDAY_TEMPLATES = Object.freeze([
+    { id: "theme", label: "테마", meta: "컬러 테마 연동" },
+    { id: "glass", label: "글래스", meta: "부드러운 반투명" },
+    { id: "paper", label: "페이퍼", meta: "가벼운 노트 질감" }
+  ]);
+  const DIARY_DDAY_TEMPLATE_BY_ID = new Map(DIARY_DDAY_TEMPLATES.map((item) => [item.id, item]));
+  let diaryDdayImageDraft = null;
+  let diaryPomodoroInterval = null;
+
+  function detectAppMode() {
+    try { st.appMode = localStorage.getItem(APP_MODE_KEY) === "diary" ? "diary" : "memo"; }
+    catch (e) { st.appMode = "memo"; }
+    syncAppModeClass();
+  }
+  function isDiaryMode() { return st.appMode === "diary"; }
+  function syncAppModeClass() {
+    document.body.classList.toggle("diary-mode", isDiaryMode());
+    document.body.classList.toggle("memo-mode", !isDiaryMode());
+  }
+  function setAppMode(mode) {
+    st.appMode = mode === "diary" ? "diary" : "memo";
+    try { localStorage.setItem(APP_MODE_KEY, st.appMode); } catch (e) {}
+    syncAppModeClass();
+    updateHomeModeButton();
+    if (curView().s !== "home") void goHome();
+    else { render(); renderSidebar(); }
+    toast(isDiaryMode() ? "다이어리 화면으로 전환했어요" : "메모 화면으로 돌아왔어요");
+  }
+  function updateHomeModeButton() {
+    const btn = $("homeFab"); if (!btn) return;
+    if (isDiaryMode()) {
+      btn.setAttribute("aria-label", "메모 화면으로 돌아가기");
+      btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/><path d="M20 12H9"/></svg>';
+    } else {
+      btn.setAttribute("aria-label", "다이어리 화면으로 전환");
+      btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M8 14h3M13 14h3M8 17h3"/></svg>';
+    }
+  }
+  function todayISO(offset) {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + (Number(offset) || 0));
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  function normalizeISODate(value, fallback) {
+    const text = typeof value === "string" ? value.trim() : "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : (fallback || todayISO());
+  }
+  function dateFromISO(iso) {
+    const safe = normalizeISODate(iso);
+    const parts = safe.split("-").map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+  }
+  function dateDiffDays(target, base) {
+    const a = dateFromISO(target), b = dateFromISO(base || todayISO());
+    return Math.round((a - b) / 86400000);
+  }
+  function diaryDateLabel(iso) {
+    const d = dateFromISO(iso);
+    return `${d.getMonth() + 1}.${d.getDate()}`;
+  }
+  function diaryDateLongLabel(iso) {
+    const d = dateFromISO(iso);
+    const day = "일월화수목금토"[d.getDay()];
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${day}`;
+  }
+  function diaryTimeLabel(start, end) {
+    const a = String(start || "").slice(0, 5), b = String(end || "").slice(0, 5);
+    return a && b ? `${a}-${b}` : (a || b || "시간 미정");
+  }
+  function diarySafeText(value, max, fallback) {
+    const text = cleanImportedText(typeof value === "string" ? value : "", max || 160).trim();
+    return text || fallback || "";
+  }
+  function normalizeDiaryThumbnail(value) {
+    return normalizeProjectIconSource(value, DEFAULT_ICON);
+  }
+  function normalizeDiaryBannerImage(value) {
+    const src = safeImageSource(value);
+    return src || null;
+  }
+  function diaryDdayTemplateId(value) {
+    return DIARY_DDAY_TEMPLATE_BY_ID.has(String(value || "")) ? String(value) : "theme";
+  }
+  function defaultDiaryLayout() {
+    return {
+      activeTab: "today",
+      tabs: [
+        { id: "today", name: "오늘", widgets: [
+          { id: uid(), type: "dday", size: "wide" },
+          { id: uid(), type: "calendar", size: "large" },
+          { id: uid(), type: "daily", size: "wide" },
+          { id: uid(), type: "weekly", size: "wide" }
+        ] },
+        { id: "focus", name: "집중", widgets: [
+          { id: uid(), type: "todos", size: "wide" },
+          { id: uid(), type: "pomodoro", size: "wide" },
+          { id: uid(), type: "diaries", size: "wide" }
+        ] }
+      ]
+    };
+  }
+  function makeDefaultDiary(name) {
+    const t = now();
+    return {
+      id: uid(),
+      name: name || "기본 다이어리",
+      description: "오늘의 일정과 기록",
+      thumbnail: DEFAULT_ICON,
+      createdAt: t,
+      updatedAt: t,
+      dDays: [{ id: uid(), title: "루시잉크 다이어리", targetDate: todayISO(30), template: "theme", image: null, createdAt: t }],
+      todos: [
+        { id: uid(), title: "오늘 일정 정리", from: todayISO(), to: todayISO(), done: false, createdAt: t, updatedAt: t },
+        { id: uid(), title: "하루 기록 남기기", from: todayISO(), to: todayISO(2), done: false, createdAt: t, updatedAt: t }
+      ],
+      schedules: [
+        { id: uid(), title: "하루 계획 세우기", date: todayISO(), start: "09:00", end: "09:30", createdAt: t, updatedAt: t },
+        { id: uid(), title: "집중 시간", date: todayISO(), start: "14:00", end: "15:30", createdAt: t, updatedAt: t }
+      ],
+      pomodoro: { mode: "focus", focusMinutes: 25, breakMinutes: 5, remaining: 25 * 60, running: false, startedAt: null },
+      layout: defaultDiaryLayout()
+    };
+  }
+  function makeDefaultDiaryConfig() {
+    const diary = makeDefaultDiary();
+    return { version: 1, activeId: diary.id, updatedAt: now(), diaries: [diary] };
+  }
+  function normalizeDiaryWidget(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const type = DIARY_WIDGET_BY_TYPE.has(src.type) ? src.type : "calendar";
+    const size = DIARY_WIDGET_SIZES.has(src.size) ? src.size : "wide";
+    return { id: isSafeRecordId(src.id) ? src.id : uid(), type, size };
+  }
+  function normalizeDiaryLayout(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    let tabs = Array.isArray(src.tabs) ? src.tabs.map((tab) => {
+      const id = isSafeRecordId(tab && tab.id) ? tab.id : uid();
+      const widgets = Array.isArray(tab && tab.widgets) ? tab.widgets.map(normalizeDiaryWidget).filter(Boolean).slice(0, 12) : [];
+      return { id, name: diarySafeText(tab && tab.name, 24, "탭"), widgets };
+    }).filter(Boolean).slice(0, 6) : [];
+    if (!tabs.length) tabs = defaultDiaryLayout().tabs;
+    tabs.forEach((tab) => { if (!tab.widgets.length) tab.widgets = [{ id: uid(), type: "calendar", size: "large" }]; });
+    const activeTab = isSafeRecordId(src.activeTab) && tabs.some((tab) => tab.id === src.activeTab) ? src.activeTab : tabs[0].id;
+    return { activeTab, tabs };
+  }
+  function normalizeDiaryDday(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    return {
+      id: isSafeRecordId(src.id) ? src.id : uid(),
+      title: diarySafeText(src.title, 80, "새 디데이"),
+      targetDate: normalizeISODate(src.targetDate, todayISO(30)),
+      template: diaryDdayTemplateId(src.template),
+      image: normalizeDiaryBannerImage(src.image),
+      createdAt: Number(src.createdAt) || now()
+    };
+  }
+  function normalizeDiaryTodo(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const from = src.from ? normalizeISODate(src.from, todayISO()) : "";
+    const to = src.to ? normalizeISODate(src.to, from || todayISO()) : "";
+    return {
+      id: isSafeRecordId(src.id) ? src.id : uid(),
+      title: diarySafeText(src.title, 120, "새 할 일"),
+      from,
+      to,
+      done: !!src.done,
+      createdAt: Number(src.createdAt) || now(),
+      updatedAt: Number(src.updatedAt) || now()
+    };
+  }
+  function normalizeDiarySchedule(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    return {
+      id: isSafeRecordId(src.id) ? src.id : uid(),
+      title: diarySafeText(src.title, 120, "새 일정"),
+      date: normalizeISODate(src.date, todayISO()),
+      start: /^\d{2}:\d{2}$/.test(String(src.start || "")) ? String(src.start).slice(0, 5) : "09:00",
+      end: /^\d{2}:\d{2}$/.test(String(src.end || "")) ? String(src.end).slice(0, 5) : "10:00",
+      createdAt: Number(src.createdAt) || now(),
+      updatedAt: Number(src.updatedAt) || now()
+    };
+  }
+  function normalizeDiaryPomodoro(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const focusMinutes = Math.max(1, Math.min(180, Math.round(Number(src.focusMinutes) || 25)));
+    const breakMinutes = Math.max(1, Math.min(60, Math.round(Number(src.breakMinutes) || 5)));
+    const mode = src.mode === "break" ? "break" : "focus";
+    const maxSeconds = (mode === "break" ? breakMinutes : focusMinutes) * 60;
+    return {
+      mode,
+      focusMinutes,
+      breakMinutes,
+      remaining: Math.max(0, Math.min(maxSeconds, Math.round(Number(src.remaining) || maxSeconds))),
+      running: !!src.running,
+      startedAt: Number(src.startedAt) || null
+    };
+  }
+  function normalizeDiary(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const diary = makeDefaultDiary(diarySafeText(src.name, 80, "기본 다이어리"));
+    diary.id = isSafeRecordId(src.id) ? src.id : diary.id;
+    diary.description = diarySafeText(src.description, 500, "오늘의 일정과 기록");
+    diary.thumbnail = normalizeDiaryThumbnail(src.thumbnail);
+    diary.createdAt = Number(src.createdAt) || diary.createdAt;
+    diary.updatedAt = Number(src.updatedAt) || diary.updatedAt;
+    diary.dDays = (Array.isArray(src.dDays) ? src.dDays : diary.dDays).map(normalizeDiaryDday).filter(Boolean).slice(0, 30);
+    diary.todos = (Array.isArray(src.todos) ? src.todos : diary.todos).map(normalizeDiaryTodo).filter(Boolean).slice(0, 200);
+    diary.schedules = (Array.isArray(src.schedules) ? src.schedules : diary.schedules).map(normalizeDiarySchedule).filter(Boolean).slice(0, 300);
+    diary.pomodoro = normalizeDiaryPomodoro(src.pomodoro);
+    diary.layout = normalizeDiaryLayout(src.layout);
+    return diary;
+  }
+  function normalizeDiaryConfig(raw) {
+    const src = raw && typeof raw === "object" ? (raw.value && typeof raw.value === "object" ? raw.value : raw) : {};
+    let diaries = Array.isArray(src.diaries) ? src.diaries.map(normalizeDiary).filter(Boolean).slice(0, 30) : [];
+    if (!diaries.length) diaries = [makeDefaultDiary()];
+    const activeId = isSafeRecordId(src.activeId) && diaries.some((diary) => diary.id === src.activeId) ? src.activeId : diaries[0].id;
+    return { version: 1, activeId, updatedAt: Number(src.updatedAt) || now(), diaries };
+  }
+  function diaryConfig() {
+    if (!st.diary || !Array.isArray(st.diary.diaries)) st.diary = normalizeDiaryConfig(st.diary);
+    return st.diary;
+  }
+  function diaryById(id) { return diaryConfig().diaries.find((diary) => diary.id === id) || null; }
+  function currentDiary() {
+    const cfg = diaryConfig();
+    let diary = diaryById(cfg.activeId);
+    if (!diary) { diary = cfg.diaries[0] || makeDefaultDiary(); cfg.activeId = diary.id; }
+    return diary;
+  }
+  async function loadDiarySetting() {
+    try {
+      const row = await getOne("settings", DIARY_SETTING_ID);
+      st.diary = normalizeDiaryConfig(row && row.value);
+      if (!row) await persistDiary({ silent: true, backup: false });
+    } catch (e) { st.diary = makeDefaultDiaryConfig(); }
+  }
+  async function persistDiary(options) {
+    const cfg = diaryConfig();
+    cfg.updatedAt = now();
+    await put("settings", { id: DIARY_SETTING_ID, value: jsonCopy(cfg), updatedAt: cfg.updatedAt });
+    if (!options || options.backup !== false) triggerAutoBackup();
+    if (options && options.silent) return;
+    if (curView().s === "home") render();
+    if (curView().s === "settings") renderSettings();
+    renderSidebar();
+  }
+  async function restoreDiaryConfig(raw) {
+    if (!raw) return;
+    st.diary = normalizeDiaryConfig(raw);
+    await persistDiary({ silent: true, backup: false });
+  }
+  function diarySummaryText() {
+    const cfg = diaryConfig(), diary = currentDiary();
+    return `${diary.name} · 세트 ${cfg.diaries.length}개`;
+  }
+  function diaryThumbHTML(diary, cls) {
+    const src = normalizeDiaryThumbnail(diary && diary.thumbnail);
+    return `<span class="${cls || "diary-thumb"}"><span class="thumb-media"><img src="${esc(src)}" alt=""></span></span>`;
+  }
+  function diaryDdayCountText(item) {
+    const diff = dateDiffDays(item.targetDate);
+    if (diff === 0) return "D-Day";
+    return diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
+  }
+  function diaryDdayBannerStyle(item) {
+    if (item && item.image) return `background-image:linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08)), url('${item.image}')`;
+    return "";
+  }
+  function diarySchedulesFor(diary, iso) {
+    return (diary.schedules || []).filter((item) => item.date === iso).sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+  }
+  function diaryTodosForToday(diary) {
+    const today = todayISO();
+    return (diary.todos || []).filter((todo) => {
+      if (!todo.from && !todo.to) return true;
+      if (todo.from && today < todo.from) return false;
+      if (todo.to && today > todo.to) return false;
+      return true;
+    }).sort((a, b) => Number(a.done) - Number(b.done) || (a.to || "9999").localeCompare(b.to || "9999") || (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+  function renderDiaryDdayBody(diary) {
+    const items = (diary.dDays || []).slice().sort((a, b) => Math.abs(dateDiffDays(a.targetDate)) - Math.abs(dateDiffDays(b.targetDate))).slice(0, 3);
+    if (!items.length) return '<div class="diary-empty">등록된 디데이가 없어요.</div>';
+    return `<div class="diary-dday-list">${items.map((item) => {
+      const template = diaryDdayTemplateId(item.template);
+      return `<button type="button" class="diary-dday-card template-${template}${item.image ? " has-image" : ""}" data-dday-edit="${esc(item.id)}" style="${esc(diaryDdayBannerStyle(item))}"><span><b>${esc(diaryDdayCountText(item))}</b><small>${esc(item.title)}</small></span><i>${esc(diaryDateLabel(item.targetDate))}</i></button>`;
+    }).join("")}</div>`;
+  }
+  function renderDiaryCalendarBody(diary) {
+    const nowDate = new Date(), year = nowDate.getFullYear(), month = nowDate.getMonth();
+    const first = new Date(year, month, 1), start = first.getDay(), days = new Date(year, month + 1, 0).getDate();
+    const prevDays = new Date(year, month, 0).getDate();
+    const today = todayISO();
+    const dayNames = "일월화수목금토".split("").map((d) => `<span>${d}</span>`).join("");
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const day = i - start + 1;
+      let cellDate, label, other = false;
+      if (day < 1) { label = prevDays + day; cellDate = new Date(year, month - 1, label); other = true; }
+      else if (day > days) { label = day - days; cellDate = new Date(year, month + 1, label); other = true; }
+      else { label = day; cellDate = new Date(year, month, day); }
+      const iso = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, "0")}-${String(cellDate.getDate()).padStart(2, "0")}`;
+      const count = diarySchedulesFor(diary, iso).length + (diary.todos || []).filter((todo) => todo.to === iso && !todo.done).length + (diary.dDays || []).filter((item) => item.targetDate === iso).length;
+      cells.push(`<button type="button" class="diary-cal-day${other ? " is-other" : ""}${iso === today ? " is-today" : ""}${count ? " has-mark" : ""}" data-schedule-date="${esc(iso)}"><span>${label}</span>${count ? `<i>${count}</i>` : ""}</button>`);
+    }
+    return `<div class="diary-cal-title">${year}.${String(month + 1).padStart(2, "0")}</div><div class="diary-cal-week">${dayNames}</div><div class="diary-cal-grid">${cells.join("")}</div>`;
+  }
+  function renderDiaryScheduleItem(item) {
+    return `<button type="button" class="diary-schedule-item" data-schedule-edit="${esc(item.id)}"><time>${esc(diaryTimeLabel(item.start, item.end))}</time><span>${esc(item.title)}</span></button>`;
+  }
+  function renderDiaryDailyBody(diary) {
+    const list = diarySchedulesFor(diary, todayISO());
+    return list.length ? `<div class="diary-schedule-list">${list.map(renderDiaryScheduleItem).join("")}</div>` : '<div class="diary-empty">오늘 등록된 일정이 없어요.</div>';
+  }
+  function renderDiaryWeeklyBody(diary) {
+    const rows = [];
+    for (let i = 0; i < 7; i++) {
+      const iso = todayISO(i), list = diarySchedulesFor(diary, iso);
+      rows.push(`<div class="diary-week-row"><div class="diary-week-date${i === 0 ? " today" : ""}"><b>${esc(diaryDateLabel(iso))}</b><small>${i === 0 ? "오늘" : "예정"}</small></div><div class="diary-week-items">${list.length ? list.slice(0, 3).map((item) => `<button type="button" data-schedule-edit="${esc(item.id)}">${esc(diaryTimeLabel(item.start, item.end))} · ${esc(item.title)}</button>`).join("") : "<span>비어 있음</span>"}</div></div>`);
+    }
+    return `<div class="diary-week-list">${rows.join("")}</div>`;
+  }
+  function renderDiaryTodosBody(diary) {
+    const list = diaryTodosForToday(diary).slice(0, 8);
+    if (!list.length) return '<div class="diary-empty">오늘 보이는 할 일이 없어요.</div>';
+    return `<div class="diary-todo-list">${list.map((todo) => `<label class="diary-todo-item${todo.done ? " is-done" : ""}"><input type="checkbox" data-todo-toggle="${esc(todo.id)}"${todo.done ? " checked" : ""}><span>${esc(todo.title)}</span><button type="button" data-todo-edit="${esc(todo.id)}">${todo.to ? esc(diaryDateLabel(todo.to)) : "기간 없음"}</button></label>`).join("")}</div>`;
+  }
+  function diaryPomodoroRemaining(timer) {
+    const normalized = normalizeDiaryPomodoro(timer);
+    if (!normalized.running || !normalized.startedAt) return normalized.remaining;
+    return Math.max(0, normalized.remaining - Math.floor((now() - normalized.startedAt) / 1000));
+  }
+  function diaryPomodoroMax(timer) {
+    const t = normalizeDiaryPomodoro(timer);
+    return (t.mode === "break" ? t.breakMinutes : t.focusMinutes) * 60;
+  }
+  function diaryPomodoroClock(seconds) {
+    const s = Math.max(0, Math.round(seconds || 0));
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  }
+  function renderDiaryPomodoroBody(diary) {
+    const timer = normalizeDiaryPomodoro(diary.pomodoro);
+    const remaining = diaryPomodoroRemaining(timer), max = diaryPomodoroMax(timer);
+    const pct = max ? Math.max(0, Math.min(100, Math.round((remaining / max) * 100))) : 0;
+    return `<div class="diary-pomo" style="--pomo:${pct}%"><div class="diary-pomo-ring"><b id="diaryPomoClock">${diaryPomodoroClock(remaining)}</b><small>${timer.mode === "break" ? "휴식" : "집중"}</small></div><div class="diary-pomo-actions"><button type="button" class="m-btn" data-diary-action="pomo-toggle">${timer.running ? "일시정지" : "시작"}</button><button type="button" class="m-btn" data-diary-action="pomo-reset">리셋</button><button type="button" class="m-btn" data-diary-action="pomo-settings">설정</button></div></div>`;
+  }
+  function renderDiaryListBody() {
+    const cfg = diaryConfig();
+    return `<div class="diary-set-list">${cfg.diaries.slice(0, 6).map((item) => `<button type="button" class="diary-set-item${item.id === cfg.activeId ? " active" : ""}" data-diary-open="${esc(item.id)}">${diaryThumbHTML(item, "diary-set-thumb")}<span><b>${esc(item.name)}</b><small>${esc(item.description || "다이어리")}</small></span></button>`).join("")}</div>`;
+  }
+  function renderDiaryWidget(widget, diary) {
+    const def = DIARY_WIDGET_BY_TYPE.get(widget.type) || DIARY_WIDGET_BY_TYPE.get("calendar");
+    const action = ({ dday:"add-dday", daily:"add-schedule", weekly:"add-schedule", todos:"add-todo", diaries:"manage", calendar:"add-schedule", pomodoro:"pomo-toggle" })[def.type];
+    const body = def.type === "dday" ? renderDiaryDdayBody(diary)
+      : def.type === "calendar" ? renderDiaryCalendarBody(diary)
+      : def.type === "daily" ? renderDiaryDailyBody(diary)
+      : def.type === "weekly" ? renderDiaryWeeklyBody(diary)
+      : def.type === "todos" ? renderDiaryTodosBody(diary)
+      : def.type === "pomodoro" ? renderDiaryPomodoroBody(diary)
+      : renderDiaryListBody();
+    const actionLabel = def.type === "pomodoro" ? "" : "+";
+    return `<section class="diary-widget diary-widget-${esc(def.type)} size-${esc(widget.size)}"><header><span><i>${esc(def.icon)}</i>${esc(def.label)}</span>${action ? `<button type="button" data-diary-action="${esc(action)}">${actionLabel}</button>` : ""}</header>${body}</section>`;
+  }
+  function renderDiaryHome() {
+    const host = $("diaryHome"); if (!host) return;
+    const diary = currentDiary();
+    const layout = normalizeDiaryLayout(diary.layout);
+    diary.layout = layout;
+    const tab = layout.tabs.find((item) => item.id === layout.activeTab) || layout.tabs[0];
+    const widgets = tab.widgets.map((widget) => renderDiaryWidget(widget, diary)).join("");
+    host.innerHTML = `
+      <div class="diary-hero">
+        ${diaryThumbHTML(diary, "diary-hero-thumb")}
+        <div class="diary-hero-copy"><small>DIARY</small><h2>${esc(diary.name)}</h2><p>${esc(diary.description || "오늘의 일정과 기록")}</p></div>
+        <button type="button" class="diary-tool-btn" data-diary-action="quick-add" aria-label="다이어리 항목 추가"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button type="button" class="diary-tool-btn" data-diary-action="settings" aria-label="다이어리 설정"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.4-2.3 1a7.6 7.6 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7.6 7.6 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7.6 7.6 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.6 7.6 0 0 0 1.7-1l2.3 1 2-3.4z"/></svg></button>
+      </div>
+      <div class="diary-tabs" role="tablist">${layout.tabs.map((item) => `<button type="button" role="tab" data-diary-tab="${esc(item.id)}" class="${item.id === tab.id ? "active" : ""}">${esc(item.name)}</button>`).join("")}</div>
+      <div class="diary-widget-grid">${widgets}</div>
+    `;
+    bindDiaryHome(host, diary);
+    ensureDiaryPomodoroTick();
+  }
+  function bindDiaryHome(host, diary) {
+    host.querySelectorAll("[data-diary-tab]").forEach((button) => button.addEventListener("click", async () => {
+      diary.layout.activeTab = button.dataset.diaryTab; diary.updatedAt = now(); await persistDiary();
+    }));
+    host.querySelectorAll("[data-diary-action]").forEach((button) => button.addEventListener("click", () => runDiaryAction(button.dataset.diaryAction, diary)));
+    host.querySelectorAll("[data-diary-open]").forEach((button) => button.addEventListener("click", async () => { diaryConfig().activeId = button.dataset.diaryOpen; await persistDiary(); }));
+    host.querySelectorAll("[data-dday-edit]").forEach((button) => button.addEventListener("click", () => openDiaryDdayForm(button.dataset.ddayEdit)));
+    host.querySelectorAll("[data-schedule-edit]").forEach((button) => button.addEventListener("click", () => openDiaryScheduleForm(button.dataset.scheduleEdit)));
+    host.querySelectorAll("[data-schedule-date]").forEach((button) => button.addEventListener("click", () => openDiaryScheduleForm(null, button.dataset.scheduleDate)));
+    host.querySelectorAll("[data-todo-edit]").forEach((button) => button.addEventListener("click", (event) => { event.preventDefault(); openDiaryTodoForm(button.dataset.todoEdit); }));
+    host.querySelectorAll("[data-todo-toggle]").forEach((input) => input.addEventListener("change", async () => {
+      const todo = diary.todos.find((item) => item.id === input.dataset.todoToggle); if (!todo) return;
+      todo.done = input.checked; todo.updatedAt = now(); diary.updatedAt = now(); await persistDiary();
+    }));
+  }
+  function runDiaryAction(action, diary) {
+    if (action === "quick-add") { openDiaryQuickAdd(); return; }
+    if (action === "settings") { openDiarySettings(); return; }
+    if (action === "manage") { openDiaryManager(); return; }
+    if (action === "add-dday") { openDiaryDdayForm(null); return; }
+    if (action === "add-todo") { openDiaryTodoForm(null); return; }
+    if (action === "add-schedule") { openDiaryScheduleForm(null); return; }
+    if (action === "pomo-toggle") { void toggleDiaryPomodoro(diary); return; }
+    if (action === "pomo-reset") { void resetDiaryPomodoro(diary); return; }
+    if (action === "pomo-settings") { openDiaryPomodoroSettings(); }
+  }
+  function openDiaryQuickAdd() {
+    const icon = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+    openSheet("다이어리 추가", [
+      { icon, label: "디데이", fn: () => openDiaryDdayForm(null) },
+      { icon, label: "투두", fn: () => openDiaryTodoForm(null) },
+      { icon, label: "일정", fn: () => openDiaryScheduleForm(null) },
+      { icon, label: "다이어리 세트", fn: () => openDiarySetForm(null) }
+    ]);
+  }
+  function openDiarySettings() {
+    const diary = currentDiary();
+    openModal(`<h3>다이어리 설정</h3><p class="m-sub">${esc(diarySummaryText())}</p>
+      <div class="set-row" id="diaryMainPick"><div class="set-rtext"><div class="set-rlabel">메인 다이어리</div><div class="set-rsub">${esc(diary.description || "대표로 표시 중")}</div></div><div class="set-rval">${esc(diary.name)} ›</div></div>
+      <div class="set-row" id="diaryLayoutPick"><div class="set-rtext"><div class="set-rlabel">메인 구성 편집</div><div class="set-rsub">탭·위젯·순서·크기 단계</div></div><div class="set-rval">편집 ›</div></div>
+      <div class="set-row" id="diaryManagePick"><div class="set-rtext"><div class="set-rlabel">다이어리 세트 관리</div><div class="set-rsub">새 세트 생성·수정·삭제</div></div><div class="set-rval">${diaryConfig().diaries.length}개 ›</div></div>
+      <div class="m-row"><button class="m-btn" id="diarySettingsClose">닫기</button></div>`);
+    $on("diaryMainPick", "click", openDiaryManager);
+    $on("diaryLayoutPick", "click", () => openDiaryLayoutEditor(diary.id));
+    $on("diaryManagePick", "click", openDiaryManager);
+    $on("diarySettingsClose", "click", closeModal);
+  }
+  function openDiaryManager() {
+    const cfg = diaryConfig();
+    const list = cfg.diaries.map((diary) => `<div class="diary-manager-row${diary.id === cfg.activeId ? " active" : ""}">
+      <button type="button" data-diary-set-active="${esc(diary.id)}">${diaryThumbHTML(diary, "diary-set-thumb")}<span><b>${esc(diary.name)}</b><small>${esc(diary.description || "다이어리")}</small></span></button>
+      <button type="button" class="m-btn" data-diary-set-edit="${esc(diary.id)}">편집</button>
+      <button type="button" class="m-btn danger" data-diary-set-delete="${esc(diary.id)}">삭제</button>
+    </div>`).join("");
+    openModal(`<h3>다이어리 세트</h3><p class="m-sub">메인에 표시할 다이어리를 선택합니다.</p><div class="diary-manager-list">${list}</div><div class="m-row"><button class="m-btn" id="diaryManagerClose">닫기</button><button class="m-btn primary" id="diaryManagerNew">새 다이어리</button></div>`);
+    $("modalBox").querySelectorAll("[data-diary-set-active]").forEach((button) => button.addEventListener("click", async () => { cfg.activeId = button.dataset.diarySetActive; await persistDiary({ silent: true }); openDiaryManager(); render(); renderSidebar(); }));
+    $("modalBox").querySelectorAll("[data-diary-set-edit]").forEach((button) => button.addEventListener("click", () => openDiarySetForm(button.dataset.diarySetEdit)));
+    $("modalBox").querySelectorAll("[data-diary-set-delete]").forEach((button) => button.addEventListener("click", () => deleteDiarySet(button.dataset.diarySetDelete)));
+    $on("diaryManagerClose", "click", closeModal);
+    $on("diaryManagerNew", "click", () => openDiarySetForm(null));
+  }
+  function openDiarySetForm(id) {
+    const cfg = diaryConfig(), diary = id ? diaryById(id) : null;
+    const currentThumb = normalizeDiaryThumbnail(diary && diary.thumbnail);
+    openModal(`<h3>${diary ? "다이어리 편집" : "새 다이어리"}</h3>
+      <div class="m-field-label">이름</div><input class="m-input" id="diarySetName" maxlength="80" value="${esc(diary ? diary.name : "")}" placeholder="다이어리 이름">
+      <div class="m-field-label">설명</div><input class="m-input" id="diarySetDesc" maxlength="160" value="${esc(diary ? diary.description : "")}" placeholder="짧은 설명">
+      <input type="hidden" id="diarySetThumb" value="${esc(currentThumb)}">
+      <div class="diary-thumb-grid">${ICONS.map((item) => `<button type="button" class="icon-opt${currentThumb === item.data ? " sel" : ""}" data-diary-thumb="${esc(item.data)}"><img src="${esc(item.data)}" alt="${esc(item.name)}"></button>`).join("")}</div>
+      <div class="m-row"><button class="m-btn" id="diarySetCancel">취소</button><button class="m-btn primary" id="diarySetSave">${diary ? "저장" : "만들기"}</button></div>`);
+    $("modalBox").querySelectorAll("[data-diary-thumb]").forEach((button) => button.addEventListener("click", () => {
+      $("diarySetThumb").value = button.dataset.diaryThumb;
+      $("modalBox").querySelectorAll("[data-diary-thumb]").forEach((item) => item.classList.toggle("sel", item === button));
+    }));
+    $on("diarySetCancel", "click", () => diary ? openDiaryManager() : closeModal);
+    $on("diarySetSave", "click", async () => {
+      const name = diarySafeText($("diarySetName").value, 80, "새 다이어리"), desc = diarySafeText($("diarySetDesc").value, 160, "오늘의 일정과 기록");
+      if (diary) { diary.name = name; diary.description = desc; diary.thumbnail = normalizeDiaryThumbnail($("diarySetThumb").value); diary.updatedAt = now(); }
+      else { const fresh = makeDefaultDiary(name); fresh.description = desc; fresh.thumbnail = normalizeDiaryThumbnail($("diarySetThumb").value); cfg.diaries.push(fresh); cfg.activeId = fresh.id; }
+      await persistDiary({ silent: true }); openDiaryManager(); render(); renderSidebar();
+    });
+  }
+  function deleteDiarySet(id) {
+    const diary = diaryById(id); if (!diary) return;
+    confirmModal("다이어리 삭제", `'${diary.name}' 다이어리를 삭제할까요?`, "삭제", true, async () => {
+      const cfg = diaryConfig();
+      cfg.diaries = cfg.diaries.filter((item) => item.id !== id);
+      if (!cfg.diaries.length) cfg.diaries.push(makeDefaultDiary());
+      if (!cfg.diaries.some((item) => item.id === cfg.activeId)) cfg.activeId = cfg.diaries[0].id;
+      await persistDiary({ silent: true }); openDiaryManager(); render(); renderSidebar();
+    });
+  }
+  function openDiaryDdayForm(id) {
+    const diary = currentDiary(), item = id ? diary.dDays.find((row) => row.id === id) : null;
+    diaryDdayImageDraft = item ? item.image : null;
+    const template = item ? diaryDdayTemplateId(item.template) : "theme";
+    openModal(`<h3>${item ? "디데이 편집" : "새 디데이"}</h3>
+      <div class="m-field-label">이름</div><input class="m-input" id="diaryDdayTitle" maxlength="80" value="${esc(item ? item.title : "")}" placeholder="예: 원고 마감">
+      <div class="m-field-label">날짜</div><input class="m-input" id="diaryDdayDate" type="date" value="${esc(item ? item.targetDate : todayISO(30))}">
+      <input type="hidden" id="diaryDdayTemplate" value="${esc(template)}">
+      <div class="diary-template-grid">${DIARY_DDAY_TEMPLATES.map((tpl) => `<button type="button" class="diary-template-card template-${tpl.id}${tpl.id === template ? " sel" : ""}" data-dday-template="${tpl.id}"><b>${esc(tpl.label)}</b><small>${esc(tpl.meta)}</small></button>`).join("")}</div>
+      <div class="diary-banner-preview template-${esc(template)}${diaryDdayImageDraft ? " has-image" : ""}" id="diaryDdayPreview" style="${esc(diaryDdayImageDraft ? `background-image:linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08)), url('${diaryDdayImageDraft}')` : "")}"><span>Banner</span></div>
+      <div class="m-row"><button class="m-btn" id="diaryDdayImage">이미지</button><button class="m-btn" id="diaryDdayImageClear">이미지 제거</button>${item ? '<button class="m-btn danger" id="diaryDdayDelete">삭제</button>' : ""}</div>
+      <div class="m-row"><button class="m-btn" id="diaryDdayCancel">취소</button><button class="m-btn primary" id="diaryDdaySave">저장</button></div>`);
+    $("modalBox").querySelectorAll("[data-dday-template]").forEach((button) => button.addEventListener("click", () => {
+      $("diaryDdayTemplate").value = button.dataset.ddayTemplate;
+      $("modalBox").querySelectorAll("[data-dday-template]").forEach((item) => item.classList.toggle("sel", item === button));
+      const prev = $("diaryDdayPreview"); if (prev) { DIARY_DDAY_TEMPLATES.forEach((tpl) => prev.classList.remove("template-" + tpl.id)); prev.classList.add("template-" + button.dataset.ddayTemplate); }
+    }));
+    $on("diaryDdayImage", "click", () => $("diaryBannerInput").click());
+    $on("diaryDdayImageClear", "click", () => { diaryDdayImageDraft = null; const prev = $("diaryDdayPreview"); if (prev) { prev.classList.remove("has-image"); prev.removeAttribute("style"); } });
+    if (item) $on("diaryDdayDelete", "click", () => confirmModal("디데이 삭제", `'${item.title}' 항목을 삭제할까요?`, "삭제", true, async () => { diary.dDays = diary.dDays.filter((row) => row.id !== item.id); diary.updatedAt = now(); await persistDiary(); closeModal(); }));
+    $on("diaryDdayCancel", "click", closeModal);
+    $on("diaryDdaySave", "click", async () => {
+      const next = {
+        id: item ? item.id : uid(),
+        title: diarySafeText($("diaryDdayTitle").value, 80, "새 디데이"),
+        targetDate: normalizeISODate($("diaryDdayDate").value, todayISO(30)),
+        template: diaryDdayTemplateId($("diaryDdayTemplate").value),
+        image: diaryDdayImageDraft,
+        createdAt: item ? item.createdAt : now()
+      };
+      if (item) Object.assign(item, next);
+      else diary.dDays.push(next);
+      diary.updatedAt = now(); await persistDiary(); closeModal();
+    });
+  }
+  function openDiaryTodoForm(id) {
+    const diary = currentDiary(), item = id ? diary.todos.find((row) => row.id === id) : null;
+    openModal(`<h3>${item ? "투두 편집" : "새 투두"}</h3>
+      <div class="m-field-label">내용</div><input class="m-input" id="diaryTodoTitle" maxlength="120" value="${esc(item ? item.title : "")}" placeholder="할 일">
+      <div class="m-field-label">기간</div><div class="diary-date-pair"><input class="m-input" id="diaryTodoFrom" type="date" value="${esc(item ? item.from : todayISO())}"><input class="m-input" id="diaryTodoTo" type="date" value="${esc(item ? item.to : todayISO())}"></div>
+      <div class="m-row">${item ? '<button class="m-btn danger" id="diaryTodoDelete">삭제</button>' : ""}<button class="m-btn" id="diaryTodoCancel">취소</button><button class="m-btn primary" id="diaryTodoSave">저장</button></div>`);
+    if (item) $on("diaryTodoDelete", "click", () => confirmModal("투두 삭제", `'${item.title}' 항목을 삭제할까요?`, "삭제", true, async () => { diary.todos = diary.todos.filter((row) => row.id !== item.id); diary.updatedAt = now(); await persistDiary(); closeModal(); }));
+    $on("diaryTodoCancel", "click", closeModal);
+    $on("diaryTodoSave", "click", async () => {
+      const next = normalizeDiaryTodo({ id: item ? item.id : uid(), title: $("diaryTodoTitle").value, from: $("diaryTodoFrom").value, to: $("diaryTodoTo").value, done: item ? item.done : false, createdAt: item ? item.createdAt : now(), updatedAt: now() });
+      if (item) Object.assign(item, next); else diary.todos.push(next);
+      diary.updatedAt = now(); await persistDiary(); closeModal();
+    });
+  }
+  function openDiaryScheduleForm(id, date) {
+    const diary = currentDiary(), item = id ? diary.schedules.find((row) => row.id === id) : null;
+    openModal(`<h3>${item ? "일정 편집" : "새 일정"}</h3>
+      <div class="m-field-label">내용</div><input class="m-input" id="diaryScheduleTitle" maxlength="120" value="${esc(item ? item.title : "")}" placeholder="일정">
+      <div class="m-field-label">날짜</div><input class="m-input" id="diaryScheduleDate" type="date" value="${esc(item ? item.date : (date || todayISO()))}">
+      <div class="m-field-label">시간</div><div class="diary-date-pair"><input class="m-input" id="diaryScheduleStart" type="time" value="${esc(item ? item.start : "09:00")}"><input class="m-input" id="diaryScheduleEnd" type="time" value="${esc(item ? item.end : "10:00")}"></div>
+      <div class="m-row">${item ? '<button class="m-btn danger" id="diaryScheduleDelete">삭제</button>' : ""}<button class="m-btn" id="diaryScheduleCancel">취소</button><button class="m-btn primary" id="diaryScheduleSave">저장</button></div>`);
+    if (item) $on("diaryScheduleDelete", "click", () => confirmModal("일정 삭제", `'${item.title}' 일정을 삭제할까요?`, "삭제", true, async () => { diary.schedules = diary.schedules.filter((row) => row.id !== item.id); diary.updatedAt = now(); await persistDiary(); closeModal(); }));
+    $on("diaryScheduleCancel", "click", closeModal);
+    $on("diaryScheduleSave", "click", async () => {
+      const next = normalizeDiarySchedule({ id: item ? item.id : uid(), title: $("diaryScheduleTitle").value, date: $("diaryScheduleDate").value, start: $("diaryScheduleStart").value, end: $("diaryScheduleEnd").value, createdAt: item ? item.createdAt : now(), updatedAt: now() });
+      if (item) Object.assign(item, next); else diary.schedules.push(next);
+      diary.updatedAt = now(); await persistDiary(); closeModal();
+    });
+  }
+  function openDiaryPomodoroSettings() {
+    const diary = currentDiary(), timer = normalizeDiaryPomodoro(diary.pomodoro);
+    openModal(`<h3>뽀모도로 설정</h3>
+      <div class="m-field-label">집중 시간</div><input class="m-input" id="diaryFocusMin" type="number" min="1" max="180" value="${timer.focusMinutes}">
+      <div class="m-field-label">휴식 시간</div><input class="m-input" id="diaryBreakMin" type="number" min="1" max="60" value="${timer.breakMinutes}">
+      <div class="m-row"><button class="m-btn" id="diaryPomoCancel">취소</button><button class="m-btn primary" id="diaryPomoSave">저장</button></div>`);
+    $on("diaryPomoCancel", "click", closeModal);
+    $on("diaryPomoSave", "click", async () => {
+      const focus = Math.max(1, Math.min(180, Math.round(Number($("diaryFocusMin").value) || 25)));
+      const brk = Math.max(1, Math.min(60, Math.round(Number($("diaryBreakMin").value) || 5)));
+      diary.pomodoro = { mode: "focus", focusMinutes: focus, breakMinutes: brk, remaining: focus * 60, running: false, startedAt: null };
+      diary.updatedAt = now(); await persistDiary(); closeModal();
+    });
+  }
+  async function toggleDiaryPomodoro(diary) {
+    const timer = normalizeDiaryPomodoro(diary.pomodoro);
+    if (timer.running) {
+      timer.remaining = diaryPomodoroRemaining(timer);
+      timer.running = false; timer.startedAt = null;
+    } else {
+      if (timer.remaining <= 0) timer.remaining = diaryPomodoroMax(timer);
+      timer.running = true; timer.startedAt = now();
+    }
+    diary.pomodoro = timer; diary.updatedAt = now(); await persistDiary();
+  }
+  async function resetDiaryPomodoro(diary) {
+    const timer = normalizeDiaryPomodoro(diary.pomodoro);
+    timer.running = false; timer.startedAt = null; timer.remaining = diaryPomodoroMax(timer);
+    diary.pomodoro = timer; diary.updatedAt = now(); await persistDiary();
+  }
+  function ensureDiaryPomodoroTick() {
+    if (diaryPomodoroInterval) return;
+    diaryPomodoroInterval = setInterval(async () => {
+      if (!isDiaryMode() || curView().s !== "home") return;
+      const diary = currentDiary(), timer = normalizeDiaryPomodoro(diary.pomodoro);
+      const remaining = diaryPomodoroRemaining(timer);
+      const clock = $("diaryPomoClock"); if (clock) clock.textContent = diaryPomodoroClock(remaining);
+      if (timer.running && remaining <= 0) {
+        timer.running = false; timer.startedAt = null; timer.remaining = 0; diary.pomodoro = timer; diary.updatedAt = now();
+        try { await persistDiary({ silent: true }); } catch (e) {}
+        render(); toast("뽀모도로 시간이 끝났어요");
+      }
+    }, 1000);
+  }
+  function openDiaryLayoutEditor(diaryId, tabId) {
+    const diary = diaryById(diaryId) || currentDiary();
+    const layout = normalizeDiaryLayout(diary.layout); diary.layout = layout;
+    const activeTabId = tabId && layout.tabs.some((tab) => tab.id === tabId) ? tabId : layout.activeTab;
+    const tab = layout.tabs.find((item) => item.id === activeTabId) || layout.tabs[0];
+    const used = new Set(tab.widgets.map((widget) => widget.type));
+    const missing = DIARY_WIDGETS.filter((item) => !used.has(item.type));
+    const rows = tab.widgets.map((widget, index) => {
+      const def = DIARY_WIDGET_BY_TYPE.get(widget.type);
+      const sizes = [["small","작게"],["medium","보통"],["wide","넓게"],["large","크게"]].map(([value,label]) => `<option value="${value}"${widget.size === value ? " selected" : ""}>${label}</option>`).join("");
+      return `<div class="diary-layout-row"><b>${esc(def ? def.label : widget.type)}</b><select class="m-input" data-layout-size="${esc(widget.id)}">${sizes}</select><button class="m-btn" data-layout-up="${esc(widget.id)}">↑</button><button class="m-btn" data-layout-down="${esc(widget.id)}">↓</button><button class="m-btn danger" data-layout-remove="${esc(widget.id)}">제거</button></div>`;
+    }).join("");
+    openModal(`<h3>메인 구성 편집</h3><p class="m-sub">${esc(diary.name)} · ${esc(tab.name)}</p>
+      <div class="diary-layout-tabs">${layout.tabs.map((item) => `<button type="button" class="${item.id === tab.id ? "active" : ""}" data-layout-tab="${esc(item.id)}">${esc(item.name)}</button>`).join("")}</div>
+      <div class="diary-layout-tab-actions"><button class="m-btn" id="diaryLayoutRename">탭 이름</button><button class="m-btn" id="diaryLayoutAddTab">탭 추가</button><button class="m-btn danger" id="diaryLayoutDeleteTab">탭 삭제</button></div>
+      <div class="diary-layout-list">${rows}</div>
+      <div class="diary-layout-add"><select class="m-input" id="diaryLayoutAddSelect">${missing.map((item) => `<option value="${item.type}">${esc(item.label)}</option>`).join("")}</select><button class="m-btn primary" id="diaryLayoutAddWidget">위젯 추가</button></div>
+      <div class="m-row"><button class="m-btn" id="diaryLayoutClose">닫기</button></div>`);
+    const saveAndReopen = async (nextTabId) => { diary.updatedAt = now(); await persistDiary({ silent: true }); openDiaryLayoutEditor(diary.id, nextTabId || tab.id); render(); renderSidebar(); };
+    $("modalBox").querySelectorAll("[data-layout-tab]").forEach((button) => button.addEventListener("click", async () => { layout.activeTab = button.dataset.layoutTab; await saveAndReopen(button.dataset.layoutTab); }));
+    $("modalBox").querySelectorAll("[data-layout-size]").forEach((select) => select.addEventListener("change", async () => { const widget = tab.widgets.find((item) => item.id === select.dataset.layoutSize); if (widget) widget.size = DIARY_WIDGET_SIZES.has(select.value) ? select.value : "wide"; await saveAndReopen(tab.id); }));
+    $("modalBox").querySelectorAll("[data-layout-up]").forEach((button) => button.addEventListener("click", async () => { const i = tab.widgets.findIndex((item) => item.id === button.dataset.layoutUp); if (i > 0) { [tab.widgets[i - 1], tab.widgets[i]] = [tab.widgets[i], tab.widgets[i - 1]]; await saveAndReopen(tab.id); } }));
+    $("modalBox").querySelectorAll("[data-layout-down]").forEach((button) => button.addEventListener("click", async () => { const i = tab.widgets.findIndex((item) => item.id === button.dataset.layoutDown); if (i >= 0 && i < tab.widgets.length - 1) { [tab.widgets[i + 1], tab.widgets[i]] = [tab.widgets[i], tab.widgets[i + 1]]; await saveAndReopen(tab.id); } }));
+    $("modalBox").querySelectorAll("[data-layout-remove]").forEach((button) => button.addEventListener("click", async () => { tab.widgets = tab.widgets.filter((item) => item.id !== button.dataset.layoutRemove); if (!tab.widgets.length) tab.widgets.push({ id: uid(), type: "calendar", size: "large" }); await saveAndReopen(tab.id); }));
+    $on("diaryLayoutAddWidget", "click", async () => { const type = $("diaryLayoutAddSelect").value; if (!DIARY_WIDGET_BY_TYPE.has(type)) { toast("추가할 위젯이 없어요"); return; } tab.widgets.push({ id: uid(), type, size: "wide" }); await saveAndReopen(tab.id); });
+    $on("diaryLayoutAddTab", "click", async () => { const fresh = { id: uid(), name: `탭 ${layout.tabs.length + 1}`, widgets: [{ id: uid(), type: "calendar", size: "large" }] }; layout.tabs.push(fresh); layout.activeTab = fresh.id; await saveAndReopen(fresh.id); });
+    $on("diaryLayoutDeleteTab", "click", () => { if (layout.tabs.length <= 1) { toast("탭은 하나 이상 필요해요"); return; } confirmModal("탭 삭제", `'${tab.name}' 탭을 삭제할까요?`, "삭제", true, async () => { layout.tabs = layout.tabs.filter((item) => item.id !== tab.id); layout.activeTab = layout.tabs[0].id; await saveAndReopen(layout.activeTab); }); });
+    $on("diaryLayoutRename", "click", () => renameModal("탭 이름", tab.name, async (value) => { if (!value) return; tab.name = diarySafeText(value, 24, tab.name); await saveAndReopen(tab.id); }));
+    $on("diaryLayoutClose", "click", closeModal);
+  }
   function draftKey(n) { return DRAFT_PREFIX + (n && n.id ? n.id : ""); }
   function readDraft(n) {
     if (!n || !n.id) return null;
@@ -850,6 +1511,7 @@
   function render() {
     const v = curView();
     restoreRouteView(v);
+    syncAppModeClass();
     showScreen(v.s);
     if (v.s === "home") renderHome();
     else if (v.s === "project") renderProjectDetail();
@@ -962,9 +1624,13 @@
     // v49: 프레임 데이터도 프로젝트 레코드의 일부로 정규화합니다.
     // 구버전·외부 복원 데이터의 잘못된 프레임 ID/색상은 렌더링 전에 안전하게 제거합니다.
     for (const project of st.projects) {
+      const validLibraryIcon = quickMenuLibraryIconId(project.iconLibraryId);
+      const validIcon = validLibraryIcon ? null : normalizeProjectIconSource(project.icon, DEFAULT_ICON);
       const validFrame = frameById(project.frame) ? project.frame : null;
       const validColor = validFrame ? (normalizeFrameColor(project.frameColor) || "#d4af37") : null;
-      if ((project.frame || null) !== validFrame || (project.frameColor || null) !== validColor) {
+      if ((project.iconLibraryId || null) !== validLibraryIcon || (project.icon || null) !== validIcon || (project.frame || null) !== validFrame || (project.frameColor || null) !== validColor) {
+        project.iconLibraryId = validLibraryIcon;
+        project.icon = validIcon;
         project.frame = validFrame;
         project.frameColor = validColor;
         await put("projects", project);
@@ -1171,6 +1837,12 @@
     return card;
   }
   function renderHome() {
+    updateHomeModeButton();
+    if (isDiaryMode()) {
+      renderDiaryHome();
+      const hf = $("hfStats"); if (hf) hf.textContent = diarySummaryText();
+      return;
+    }
     const grid = $("projGrid");
     const lab = $("homeSortLabel"); if (lab) lab.textContent = SORT_LABELS[st.homeSort] || "최신순";
     if (!st.projects.length) { grid.innerHTML = `<div class="grid-empty">아직 프로젝트가 없어요.<br>새 프로젝트를 만들어 보세요.</div>`; return; }
@@ -1213,6 +1885,31 @@
 
   function renderSidebar() {
     const list = $("sbList");
+    const section = document.querySelector(".sb-section-row .sb-section-box");
+    const recentHead = document.querySelector(".sb-recent-head");
+    const newMemo = $("sbNewMemo"), newProject = $("sbNewProject");
+    if (isDiaryMode()) {
+      const cfg = diaryConfig();
+      if (section) section.innerHTML = '<span class="ssb-bar"></span>다이어리';
+      if (recentHead) recentHead.style.display = "none";
+      if ($("sbRecent")) $("sbRecent").innerHTML = "";
+      if (newMemo) newMemo.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 새 일정';
+      if (newProject) newProject.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 5h16v15H4z"/><path d="M8 3v4M16 3v4M4 10h16"/></svg> 새 다이어리';
+      list.innerHTML = "";
+      cfg.diaries.forEach((diary) => {
+        const item = document.createElement("div");
+        item.className = "sb-item diary-sb-item" + (diary.id === cfg.activeId ? " active" : "");
+        item.innerHTML = diaryThumbHTML(diary, "sb-ico") + `<div class="sb-name">${esc(diary.name)}</div><div class="sb-num">${(diary.dDays || []).length + (diary.todos || []).length + (diary.schedules || []).length}</div>`;
+        item.addEventListener("click", async () => { cfg.activeId = diary.id; await persistDiary({ silent: true }); closeSidebar(); if (curView().s !== "home") void goHome(); else render(); renderSidebar(); });
+        attachLongPress(item, () => { closeSidebar(); openDiarySetForm(diary.id); });
+        list.appendChild(item);
+      });
+      return;
+    }
+    if (section) section.innerHTML = '<span class="ssb-bar"></span>프로젝트';
+    if (recentHead) recentHead.style.display = "";
+    if (newMemo) newMemo.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> 새 메모';
+    if (newProject) newProject.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 새 프로젝트';
     const [pin, rest] = partitionPinned(st.projects);
     const restSorted = sortList(rest, st.homeSort, (p) => p.name || "", (p) => p.updatedAt || p.createdAt || 0);
     list.innerHTML = "";
@@ -6578,6 +7275,9 @@
     document.querySelectorAll("#fontSizeSeg button").forEach((b) => b.classList.toggle("on", b.dataset.fs === (st.fontScale || "normal")));
     const av = $("setAccentVal"); if (av) av.innerHTML = `<span class="accent-dot"></span>${themeDisplayName()}`;
     const toolbar = $("setToolbarModeVal"); if (toolbar) toolbar.textContent = st.formatbarMode === "folded" ? "접어두기" : "항상 표시";
+    const diarySub = $("setDiarySub"), diaryVal = $("setDiaryVal");
+    if (diarySub) diarySub.textContent = diarySummaryText();
+    if (diaryVal) diaryVal.textContent = `${diaryConfig().diaries.length}개 ›`;
     const backupLimit = getAutoBackupLimit(), backupSub = $("setAutoBackupSub"), backupVal = $("setAutoBackupVal");
     if (backupSub) backupSub.textContent = `저장할 때마다 최근 ${backupLimit}개 스냅샷 보관`;
     if (backupVal) backupVal.textContent = `${backupLimit}개 보관 ›`;
@@ -6627,12 +7327,12 @@
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
   function clearStore(name) { return new Promise((res, rej) => { const r = store(name, "readwrite").clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }); }
-  async function reloadState() { st.projects = await getAll("projects"); st.notes = await getAll("notes"); await loadQuickMenuSetting(); }
+  async function reloadState() { st.projects = await getAll("projects"); st.notes = await getAll("notes"); await loadQuickMenuSetting(); await loadDiarySetting(); }
   async function exportBackup() {
     try {
       const files = await getAll("files"); const fileRecs = [];
       for (const f of files) { try { fileRecs.push({ id: f.id, noteId: f.noteId, name: f.name, type: f.type, size: f.size, createdAt: f.createdAt, data: await blobToBase64(f.blob) }); } catch (e) {} }
-      const payload = { app: "lumink", version: 3, exportedAt: now(), projects: st.projects, notes: st.notes, files: fileRecs, quickMenu: jsonCopy(quickMenuConfig()), appearance: appearanceSnapshot() };
+      const payload = { app: "lumink", version: 4, exportedAt: now(), projects: st.projects, notes: st.notes, files: fileRecs, quickMenu: jsonCopy(quickMenuConfig()), diary: jsonCopy(diaryConfig()), appearance: appearanceSnapshot() };
       const json = JSON.stringify(payload).replace(/</g, "\\u003c");
       const summary = st.projects.map((p) => {
         const ns = st.notes.filter((n) => n.projectId === p.id);
@@ -6640,7 +7340,7 @@
       }).join("");
       const doc = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>루시잉크 백업 ${new Date().toLocaleDateString("ko")}</title>
 <style>body{font-family:-apple-system,"Noto Sans KR",sans-serif;max-width:720px;margin:0 auto;padding:34px 20px;line-height:1.6;color:#1c1b19;background:#faf9f7}h1{font-size:23px;margin:0 0 4px}h2{font-size:17px;margin:22px 0 6px;border-bottom:1px solid #e7e3da;padding-bottom:5px}em{color:#9a948a;font-style:normal;font-size:.82em;margin-left:4px}ul{margin:6px 0 0;padding-left:20px}li{margin:2px 0}.note{color:#a09a8f;font-size:13px}.d{color:#666;margin:2px 0}.c{color:#9a948a;font-size:13px;margin:2px 0}</style></head>
-<body><h1>루미 ✦ 잉크 백업</h1><p class="note">${new Date().toLocaleString("ko")} · 프로젝트 ${st.projects.length}개 · 메모 ${st.notes.length}개</p>${summary}
+<body><h1>루미 ✦ 잉크 백업</h1><p class="note">${new Date().toLocaleString("ko")} · 프로젝트 ${st.projects.length}개 · 메모 ${st.notes.length}개 · 다이어리 ${diaryConfig().diaries.length}개</p>${summary}
 <p class="note" style="margin-top:26px">이 파일을 루시잉크 → 설정 → 백업 복원에서 가져오면 데이터가 복원됩니다.</p>
 <script type="application/json" id="lumink-backup">${json}<\/script></body></html>`;
       downloadDoc(doc, `lumink-backup-${dateStamp()}.html`, "text/html");
@@ -6669,11 +7369,13 @@
   }
   function normalizeImportedProject(raw) {
     if (!raw || !isSafeRecordId(raw.id)) return null;
+    const libraryIconId = quickMenuLibraryIconId(raw.iconLibraryId);
     return {
       id: raw.id,
       name: cleanImportedText(raw.name, 120) || "이름 없는 프로젝트",
       description: cleanImportedText(raw.description, 2000),
-      icon: safeImageSource(raw.icon),
+      icon: libraryIconId ? null : normalizeProjectIconSource(raw.icon, DEFAULT_ICON),
+      iconLibraryId: libraryIconId,
       chipColor: CHIP[raw.chipColor] ? raw.chipColor : null,
       frame: frameById(raw.frame) ? raw.frame : null,
       frameColor: frameById(raw.frame) ? (normalizeFrameColor(raw.frameColor) || "#d4af37") : null,
@@ -6866,6 +7568,7 @@
         await doAutoBackup();
         await applyImportData(payload.projects || [], payload.notes || [], payload.files || [], false);
         await restoreQuickMenuConfig(payload.quickMenu);
+        await restoreDiaryConfig(payload.diary);
         await restoreAppearanceConfig(payload.appearance);
         await reloadState(); render(); renderSidebar(); toast("병합 복원했어요");
       } catch (e) { toast("복원 중 오류가 났어요"); }
@@ -6875,6 +7578,7 @@
         await doAutoBackup();
         await replaceImportData(payload.projects || [], payload.notes || [], payload.files || []);
         await restoreQuickMenuConfig(payload.quickMenu);
+        await restoreDiaryConfig(payload.diary);
         await restoreAppearanceConfig(payload.appearance);
         await reloadState(); goHome(); renderSidebar(); toast("백업 시점으로 되돌렸어요");
       } catch (e) { toast("복원 중 오류가 났어요"); }
@@ -8351,10 +9055,10 @@ ${gallery}
         size: f.size, createdAt: f.createdAt, blob: f.blob
       }));
       const snap = {
-        id: "bk_" + autoBkLast, version: 3, ts: autoBkLast,
+        id: "bk_" + autoBkLast, version: 4, ts: autoBkLast,
         projects: JSON.parse(JSON.stringify(st.projects)),
         notes: JSON.parse(JSON.stringify(st.notes)), files: snapFiles,
-        quickMenu: jsonCopy(quickMenuConfig()), appearance: appearanceSnapshot()
+        quickMenu: jsonCopy(quickMenuConfig()), diary: jsonCopy(diaryConfig()), appearance: appearanceSnapshot()
       };
       await put("backups", snap);
       await pruneAutoBackups(getAutoBackupLimit());
@@ -8398,7 +9102,8 @@ ${gallery}
       const rows = all.map((s) => {
         const dt = new Date(s.ts), label = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
         const fileLabel = Array.isArray(s.files) ? ` · 첨부 ${s.files.length}` : " · 첨부 미포함";
-        return `<div class="lore-pick" data-bk="${s.id}"><div class="lp-body"><div class="lp-name">${label}</div><div class="lp-meta">프로젝트 ${s.projects.length} · 메모 ${s.notes.length}${fileLabel}</div></div><button class="ce-addbtn ab-restore" data-bk="${s.id}">복원 ›</button></div>`;
+        const diaryLabel = s.diary && Array.isArray(s.diary.diaries) ? ` · 다이어리 ${s.diary.diaries.length}` : "";
+        return `<div class="lore-pick" data-bk="${s.id}"><div class="lp-body"><div class="lp-name">${label}</div><div class="lp-meta">프로젝트 ${s.projects.length} · 메모 ${s.notes.length}${fileLabel}${diaryLabel}</div></div><button class="ce-addbtn ab-restore" data-bk="${s.id}">복원 ›</button></div>`;
       }).join("");
       const listBody = all.length
         ? `<div class="lore-pick-list">${rows}</div>`
@@ -8409,7 +9114,7 @@ ${gallery}
       document.querySelectorAll(".ab-restore").forEach((btn) => btn.addEventListener("click", () => {
         const snap = all.find((x) => x.id === btn.dataset.bk); if (!snap) return;
         const dt = new Date(snap.ts), label = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-        openRestoreModePicker({ app: "lumink", projects: snap.projects, notes: snap.notes, files: snap.files || [], quickMenu: snap.quickMenu || null, appearance: snap.appearance || null }, `${label} 자동 백업`);
+        openRestoreModePicker({ app: "lumink", projects: snap.projects, notes: snap.notes, files: snap.files || [], quickMenu: snap.quickMenu || null, diary: snap.diary || null, appearance: snap.appearance || null }, `${label} 자동 백업`);
       }));
     }).catch(() => { toast("자동 백업 정보를 읽지 못했어요"); });
   }
@@ -8486,6 +9191,7 @@ ${gallery}
     $on("setStorage", "click", () => { void openQuickMenuStorageInfo(); });
     $on("setAccent", "click", openAccentPicker);
     $on("setQuickMenu", "click", openQuickMenuSettings);
+    $on("setDiary", "click", openDiarySettings);
     $on("setToolbarMode", "click", openFormatbarModePicker);
     $on("setInstallIcon", "click", openInstallIconPicker);
     $on("setManual", "click", () => { void openManualPage(); });
@@ -8498,7 +9204,7 @@ ${gallery}
     $on("selMerge", "click", mergeSelected);
     $on("selDelete", "click", bulkDelete);
     $on("homeNewMemo", "click", () => showTypePicker(null));
-    $on("homeFab", "click", () => showTypePicker(null));
+    $on("homeFab", "click", () => setAppMode(isDiaryMode() ? "memo" : "diary"));
     $on("homeNewProject", "click", () => showProjectForm(null, () => { render(); renderSidebar(); }));
     document.querySelectorAll(".nav-back").forEach((b) => b.addEventListener("click", back));
     document.querySelectorAll(".nav-menu").forEach((b) => b.addEventListener("click", openSidebar));
@@ -8511,9 +9217,21 @@ ${gallery}
     $on("readMore", "click", () => openNoteSheet(st.curNoteId));
     $on("edBack", "click", () => { void back(); });
     $on("edMore", "click", () => openNoteSheet(st.curNoteId));
-    $on("sbNewProject", "click", () => { closeSidebar(); showProjectForm(null, () => { render(); renderSidebar(); }); });
-    $on("sbNewMemo", "click", () => { closeSidebar(); showTypePicker(null); });
+    $on("sbNewProject", "click", () => { closeSidebar(); if (isDiaryMode()) openDiarySetForm(null); else showProjectForm(null, () => { render(); renderSidebar(); }); });
+    $on("sbNewMemo", "click", () => { closeSidebar(); if (isDiaryMode()) openDiaryScheduleForm(null); else showTypePicker(null); });
     $on("sbSettings", "click", () => { closeSidebar(); go({ s: "settings" }); });
+    $on("diaryBannerInput", "change", async (event) => {
+      const file = event.target.files && event.target.files[0]; event.target.value = "";
+      if (!file) return;
+      try {
+        diaryDdayImageDraft = await fileToResized(file, 1400);
+        const prev = $("diaryDdayPreview");
+        if (prev) {
+          prev.classList.add("has-image");
+          prev.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08)), url('${diaryDdayImageDraft}')`;
+        }
+      } catch (e) { toast((e && e.message) || "이미지를 읽지 못했어요"); }
+    });
     $on("edSave", "click", async () => { await flushSave(true); toast("저장했어요"); });
     $on("loreSave", "click", async () => { await flushLore(); toast("저장했어요"); });
     $on("logSave", "click", async () => { await flushLog(); toast("저장했어요"); });
@@ -11656,6 +12374,7 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
     detectUserFont();
     detectFontScale();
     detectFormatbarMode();
+    detectAppMode();
     loadSorts();
     try {
       Object.keys(localStorage).filter((k) => k.indexOf(DRAFT_PREFIX) === 0).forEach((k) => {
@@ -11664,8 +12383,8 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
     } catch (e) {}
     try { bind(); } catch (e) { console.warn("bind", e); }
     const logTemplatesLoaded = loadBundledLogTemplates();
-    try { await openDB(); st.projects = await getAll("projects"); st.notes = await getAll("notes"); await loadCustomThemeSetting(); await loadQuickMenuSetting(); }
-    catch (e) { console.warn("DB error", e); st.quickMenu = normalizeQuickMenu(null); toast("저장소를 열 수 없어요"); }
+    try { await openDB(); st.projects = await getAll("projects"); st.notes = await getAll("notes"); await loadCustomThemeSetting(); await loadQuickMenuSetting(); await loadDiarySetting(); }
+    catch (e) { console.warn("DB error", e); st.quickMenu = normalizeQuickMenu(null); st.diary = makeDefaultDiaryConfig(); toast("저장소를 열 수 없어요"); }
     try { await logTemplatesLoaded; } catch (e) { console.warn("log templates", e); }
     try { await migrate(); } catch (e) { console.warn("migrate", e); }
     history.replaceState({ d: 1 }, "");

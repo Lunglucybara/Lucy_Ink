@@ -2,7 +2,7 @@
    업데이트를 배포할 때는 아래 CACHE 버전 숫자만 올리면
    기존 캐시가 정리되고 새 파일로 갱신됩니다. (예: v1 -> v2) */
 const CACHE_PREFIX = "luci-ink-";
-const CACHE = "luci-ink-v0.2-lucid-drop";
+const CACHE = "luci-ink-v0.3-diary";
 
 const ASSETS = [
   "./",
@@ -226,7 +226,30 @@ const ASSETS = [
   "./lucid_drop_pastel-yellow_192.png",
   "./lucid_drop_pastel-yellow_512.png",
   "./LucyInk_Lucid_Drop_Design_Guide.md",
-  "./lucid_drop_palette_data.json",  "./luci-icon.svg",
+  "./LucyInk_DDay_Template_Guide.md",
+  "./lucid_drop_palette_data.json",
+  "./square_thumbs/square_grid.png",
+  "./square_thumbs/png/lucid_drop_ink_square_1024.png",
+  "./square_thumbs/png/lucid_drop_violet_square_1024.png",
+  "./square_thumbs/png/lucid_drop_rose_square_1024.png",
+  "./square_thumbs/png/lucid_drop_gold_square_1024.png",
+  "./square_thumbs/png/lucid_drop_forest_square_1024.png",
+  "./square_thumbs/png/lucid_drop_pastel-blue_square_1024.png",
+  "./square_thumbs/png/lucid_drop_pastel-pink_square_1024.png",
+  "./square_thumbs/png/lucid_drop_pastel-green_square_1024.png",
+  "./square_thumbs/png/lucid_drop_pastel-purple_square_1024.png",
+  "./square_thumbs/png/lucid_drop_pastel-yellow_square_1024.png",
+  "./square_thumbs/svg/lucid_drop_ink_square.svg",
+  "./square_thumbs/svg/lucid_drop_violet_square.svg",
+  "./square_thumbs/svg/lucid_drop_rose_square.svg",
+  "./square_thumbs/svg/lucid_drop_gold_square.svg",
+  "./square_thumbs/svg/lucid_drop_forest_square.svg",
+  "./square_thumbs/svg/lucid_drop_pastel-blue_square.svg",
+  "./square_thumbs/svg/lucid_drop_pastel-pink_square.svg",
+  "./square_thumbs/svg/lucid_drop_pastel-green_square.svg",
+  "./square_thumbs/svg/lucid_drop_pastel-purple_square.svg",
+  "./square_thumbs/svg/lucid_drop_pastel-yellow_square.svg",
+  "./luci-icon.svg",
   "./luci-icon-192.png",
   "./luci-icon-512.png",
   "./icon-192.png",

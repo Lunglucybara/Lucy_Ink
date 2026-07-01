@@ -1,0 +1,84 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="28%" r="85%">
+      <stop offset="0%" stop-color="#1e3467"/>
+      <stop offset="55%" stop-color="#142243"/>
+      <stop offset="100%" stop-color="#0b1429"/>
+    </radialGradient>
+    <clipPath id="squircle">
+      <path d="M0,0 L512,0 L512,512 L0,512 Z"/>
+    </clipPath>
+    <linearGradient id="facetTopL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f9fafc"/><stop offset="100%" stop-color="#c9d6f2"/>
+    </linearGradient>
+    <linearGradient id="facetTopR" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eaedf5"/><stop offset="100%" stop-color="#a4b9e8"/>
+    </linearGradient>
+    <linearGradient id="facetMidL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#b6c7ef"/><stop offset="100%" stop-color="#839cd6"/>
+    </linearGradient>
+    <linearGradient id="facetMidR" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9cb2e3"/><stop offset="100%" stop-color="#6c88c9"/>
+    </linearGradient>
+    <linearGradient id="facetLowL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7f98cf"/><stop offset="100%" stop-color="#4f6db0"/>
+    </linearGradient>
+    <linearGradient id="facetLowR" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6882bd"/><stop offset="100%" stop-color="#3f5b9c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#74B9FF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#74B9FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="tipGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#bfddfc" stop-opacity="1"/>
+      <stop offset="45%" stop-color="#74B9FF" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#74B9FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g clip-path="url(#squircle)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <circle cx="110" cy="110" r="2.5" fill="#fff" opacity="0.5"/>
+    <circle cx="150" cy="380" r="2" fill="#fff" opacity="0.35"/>
+    <circle cx="400" cy="150" r="2.2" fill="#fff" opacity="0.4"/>
+    <circle cx="420" cy="360" r="1.8" fill="#fff" opacity="0.3"/>
+    <g>
+      <polygon points="256,90 196,112 256,150 " fill="url(#facetTopL)"/>
+      <polygon points="256,90 316,112 256,150" fill="url(#facetTopR)"/>
+      <polygon points="196,112 156,172 256,150" fill="url(#facetTopL)"/>
+      <polygon points="316,112 356,172 256,150" fill="url(#facetTopR)"/>
+      <polygon points="156,172 146,232 256,150" fill="url(#facetMidL)"/>
+      <polygon points="356,172 366,232 256,150" fill="url(#facetMidR)"/>
+      <polygon points="146,232 256,262 256,150" fill="url(#facetMidL)"/>
+      <polygon points="366,232 256,262 256,150" fill="url(#facetMidR)"/>
+      <polygon points="146,232 182,314 256,262" fill="url(#facetLowL)"/>
+      <polygon points="366,232 330,314 256,262" fill="url(#facetLowR)"/>
+      <polygon points="182,314 256,436 256,262" fill="url(#facetLowL)"/>
+      <polygon points="330,314 256,436 256,262" fill="url(#facetLowR)"/>
+      <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+        <g stroke="#fff3d6" stroke-width="3.2" stroke-opacity="0.22">
+          <path d="M256,90 L196,112 L156,172 L146,232 L182,314 L256,436 L330,314 L366,232 L356,172 L316,112 Z"/>
+          <path d="M196,112 L256,150 L316,112"/>
+          <path d="M146,232 L256,150 L366,232"/>
+          <path d="M146,232 L256,262 L366,232"/>
+          <path d="M182,314 L256,262 L330,314"/>
+        </g>
+        <g stroke="#fffdf6" stroke-width="1.1" stroke-opacity="0.85">
+          <path d="M256,90 L196,112 L156,172 L146,232 L182,314 L256,436 L330,314 L366,232 L356,172 L316,112 Z"/>
+          <path d="M196,112 L256,150 L316,112"/>
+          <path d="M146,232 L256,150 L366,232"/>
+          <path d="M146,232 L256,262 L366,232"/>
+          <path d="M182,314 L256,262 L330,314"/>
+        </g>
+      </g>
+    </g>
+    <line x1="256" y1="208" x2="256" y2="378" stroke="#fff3d6" stroke-width="9" stroke-linecap="round" opacity="0.22"/>
+    <line x1="256" y1="208" x2="256" y2="378" stroke="#74B9FF" stroke-width="3" stroke-linecap="round" opacity="0.95"/>
+    <circle cx="256" cy="192" r="46" fill="url(#glow)"/>
+    <circle cx="256" cy="192" r="15" fill="#fffaf0"/>
+    <circle cx="256" cy="192" r="15" fill="none" stroke="#74B9FF" stroke-width="2"/>
+    <circle cx="256" cy="414" r="55" fill="url(#tipGlow)"/>
+    <path d="M256,380 L264,406 L290,414 L264,422 L256,448 L248,422 L222,414 L248,406 Z" fill="#fffdf6"/>
+    <circle cx="256" cy="414" r="3.2" fill="#fffdf6"/>
+  </g>
+</svg>
