@@ -2,7 +2,7 @@
    업데이트를 배포할 때는 아래 CACHE 버전 숫자만 올리면
    기존 캐시가 정리되고 새 파일로 갱신됩니다. (예: v1 -> v2) */
 const CACHE_PREFIX = "luci-ink-";
-const CACHE = "luci-ink-v0.5-diary-adjusted";
+const CACHE = "luci-ink-v0.6-diary-icons30";
 
 const ASSETS = [
   "./",

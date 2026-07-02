@@ -3629,7 +3629,9 @@
 
   /* ===== v66.6 · supplied v2 vector icon palette =====
      The renewed 70-icon set only reads these runtime variables. No icon hard-codes a palette:
-     every preset and independent custom gradient recolours its background, paper, highlight and accents. */
+     every preset and independent custom gradient recolours its background, paper, highlight and accents.
+     v66.7 note: quickmenu-icon-library.js now ships 100 icons (70 base/functional + 30 decorative
+     ornament icons, category "mood"/장식) — all still bound to these same tokens only. */
   .li-vector-icon {
     --li-icon-base:color-mix(in srgb,var(--accent) 64%,white 36%);
     --li-icon-base-deep:color-mix(in srgb,var(--accent) 57%,var(--accent-2) 43%);
