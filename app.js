@@ -5268,13 +5268,26 @@
     if (!sel.rangeCount || sel.isCollapsed) { toast("크기를 바꿀 텍스트를 선택해 주세요"); return; }
     const saved = sel.getRangeAt(0).cloneRange();
     const sizes = [["아주 작게", 1, 12], ["작게", 2, 14], ["보통", 3, 16], ["크게", 4, 19], ["더 크게", 5, 23], ["제목", 6, 28], ["대제목", 7, 34]];
-    openModal(`<h3>글자 크기</h3><div class="size-list">${sizes.map(([n, v, px]) => `<div class="size-item" data-v="${v}" style="font-size:${px}px">${n}</div>`).join("")}</div><div class="m-row"><button class="m-btn" id="szClose">닫기</button></div>`);
+    openModal(`<h3>글자 크기</h3><div class="size-list">${sizes.map(([n, v, px]) => `<div class="size-item" data-v="${v}" style="font-size:${px}px">${n}</div>`).join("")}<div class="size-custom"><label><span>직접 입력</span><input id="customFontPx" class="m-input" type="number" min="6" max="96" step="1" value="16" inputmode="numeric"><em>px</em></label><button class="m-btn" id="customFontApply" type="button">적용</button></div></div><div class="m-row"><button class="m-btn" id="szClose">닫기</button></div>`);
     $("modalBox").querySelectorAll(".size-item").forEach((it) => it.addEventListener("click", () => {
       closeModal(); $("editor").focus();
       const s = window.getSelection(); s.removeAllRanges(); s.addRange(saved);
       document.execCommand("fontSize", false, it.dataset.v);
       scheduleSave();
     }));
+    const applyCustom = () => {
+      const px = Math.max(6, Math.min(96, Math.round(Number($("customFontPx").value) || 16)));
+      closeModal(); $("editor").focus();
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(saved);
+      const span = document.createElement("span");
+      span.style.fontSize = `${px}px`;
+      try { saved.surroundContents(span); }
+      catch (e) { const frag = saved.extractContents(); span.appendChild(frag); saved.insertNode(span); }
+      s.removeAllRanges(); const r = document.createRange(); r.selectNodeContents(span); s.addRange(r);
+      scheduleSave();
+    };
+    $on("customFontApply", "click", applyCustom);
+    $on("customFontPx", "keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); applyCustom(); } });
     $on("szClose", "click", closeModal);
   }
   /* ---------- free-memo image resize ---------- */
@@ -8752,7 +8765,13 @@
     if (n.type === "lorebook") { const d = n.data || {}; return ((d.content || "") + " " + ((d.keywords || []).join(" "))).toLowerCase(); }
     if (n.type === "log") { const d = normalizeLogData(n.data); return [d.content, ...(d.personaNames || []), d.personaAlias].filter(Boolean).join(" ").toLowerCase(); }
     if (n.type === "persona") { const d = n.data || {}, ko = d.ko || {}, en = d.en || {}; return [ko.name, (ko.tags || []).join(" "), ko.detail, en.name, (en.tags || []).join(" "), en.detail].filter(Boolean).join(" ").toLowerCase(); }
-    if (isCharacterCardType(n)) { const d = ensureCharacterData(n); return d.pages.map((p) => [p.ko.name, (p.ko.tags || []).join(" "), p.ko.detail, p.en.name, (p.en.tags || []).join(" "), p.en.detail, p.creatorMemo].join(" ")).join(" ").toLowerCase(); }
+    if (isCharacterCardType(n)) {
+      const d = ensureCharacterData(n);
+      return d.pages.map((p) => {
+        const rel = normalizeCharacterRelations(p.relations).map((item) => [item.noteTitle, item.pageName, item.memo].join(" ")).join(" ");
+        return [p.ko.name, (p.ko.tags || []).join(" "), p.ko.detail, p.en.name, (p.en.tags || []).join(" "), p.en.detail, p.story && p.story.detail, rel, p.creatorMemo].join(" ");
+      }).join(" ").toLowerCase();
+    }
     if (n.type === "html") return plainText(htmlSourceOf(n)).toLowerCase();
     if (n.type === "regex") { const d = normalizeRegexData(n.data || {}); return [d.scriptName, d.findRegex, d.replaceString, d.sampleText, d.trimStrings.join(" ")].join(" ").toLowerCase(); }
     if (n.type === "pdf") { const d = normalizePdfData(n.data || {}), a = pdfAttachmentFromData(d); return [a ? a.name : "", d.memo || ""].filter(Boolean).join(" ").toLowerCase(); }
@@ -10787,7 +10806,8 @@ ${gallery}
       const file = event.target.files && event.target.files[0]; event.target.value = "";
       if (!file) return;
       try {
-        startCrop(file, 16 / 9, 1400, 788, (data) => {
+        const crop = diaryDdayCropMetrics();
+        startCrop(file, crop.ratio, crop.width, crop.height, (data) => {
           diaryDdayImageDraft = data;
           const prev = $("diaryDdayPreview"), tpl = $("diaryDdayTemplate") ? $("diaryDdayTemplate").value : "theme";
           if (prev) {
@@ -11197,9 +11217,11 @@ ${gallery}
     $on("perMore", "click", () => openNoteSheet(st.curNoteId));
 
     // character memo
-    ["charKoName", "charKoDetail", "charEnName", "charEnDetail"].forEach((id) => {
-      $(id).addEventListener("input", scheduleCharSave);
-      $(id).addEventListener("blur", () => flushCharacter());
+    ["charKoName", "charKoDetail", "charStoryDetail"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("input", scheduleCharSave);
+      el.addEventListener("blur", () => flushCharacter());
     });
     $on("charCreatorEditor", "input", scheduleCreatorSave);
     $on("charCreatorCode", "input", scheduleCreatorSave);
@@ -11209,9 +11231,7 @@ ${gallery}
     $on("charCreatorEditor", "keydown", (e) => { if (e.key === " " || e.key === "Enter") setTimeout(creatorLinkifyBeforeCaret, 0); });
     $on("charKoTagInput", "keydown", (e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addCharTag("ko"); } });
     $on("charKoTagInput", "blur", () => addCharTag("ko"));
-    $on("charEnTagInput", "keydown", (e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addCharTag("en"); } });
-    $on("charEnTagInput", "blur", () => addCharTag("en"));
-    document.querySelectorAll("#screen-character [data-char-lang]").forEach((tab) => tab.addEventListener("click", () => setCharLang(tab.dataset.charLang)));
+    document.querySelectorAll("#screen-character [data-char-tab]").forEach((tab) => tab.addEventListener("click", () => setCharTab(tab.dataset.charTab)));
     $on("charPortrait", "click", (e) => { if (e.target.closest(".per-del")) return; charImgTarget = "portrait"; $("charImgInput").click(); });
     $on("charSquare", "click", (e) => { if (e.target.closest(".per-del")) return; charImgTarget = "square"; $("charImgInput").click(); });
     $on("charImgInput", "change", async (e) => { const files = e.target.files ? [...e.target.files] : []; e.target.value = ""; if (!files.length) return; if (charImgTarget === "gallery") await addCharGalleryFiles(files); else applyCharImage(files[0]); });
@@ -14320,6 +14340,472 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
   async function setCharacterDisplayStyle(n,style){if(!n||n.type!=="character")return;const d=ensureCharacterData(n);if(d.cardVariant!=="lucy"){toast("루미 캐릭터는 기존 이미지형 카드 레이아웃을 유지합니다");return;}d.displayStyle=style==="text"?"text":"image";await saveCharacter(n,true);renderCharacter();toast(d.displayStyle==="text"?"텍스트형 캐릭터 카드로 바꿨어요":"이미지형 캐릭터 카드로 바꿨어요");}
   function openCharacterDisplayStylePicker(n){const current=lucyCharacterStyle(n);openModal(`<h3>캐릭터 표시 형식</h3><p class="m-sub">이미지형은 포트레이트와 정사각형 썸네일을 사용하고, 텍스트형은 제목이 있는 설명 항목을 중심으로 보여줘요. 갤러리는 두 형식 모두 유지됩니다.</p><div class="qm-display-pick"><button type="button" class="qm-display-choice${current==="image"?" selected":""}" data-char-style="image"><span class="qm-display-schematic full"><i></i><i></i><i></i></span><b>이미지형</b><small>포트레이트 · 정사각 썸네일</small></button><button type="button" class="qm-display-choice${current==="text"?" selected":""}" data-char-style="text"><span class="qm-display-schematic mini"><i></i><i></i><i></i><i></i></span><b>텍스트형</b><small>제목형 설명 항목 · 갤러리 선택</small></button></div><div class="m-row"><button class="m-btn" id="charStyleCancel">취소</button></div>`);$("modalBox").querySelectorAll("[data-char-style]").forEach((button)=>button.addEventListener("click",()=>{closeModal();void setCharacterDisplayStyle(n,button.dataset.charStyle);}));$on("charStyleCancel","click",closeModal);}
   function openCharacterSheet(n){const d=ensureCharacterData(n),single=d.mode==="single",variant=lucyCharacterVariant(n),baseKind=n.type==="persona"?"페르소나":(variant==="lucy"?"캐릭터":"루미 캐릭터"),kind=single?baseKind:`다인 ${baseKind}`;const items=[{icon:IC.pin,label:n.pinned?"고정 해제":"상단 고정",fn:()=>togglePinNote(n.id)},{icon:IC.rename,label:"메모 이름 바꾸기",fn:()=>renameModal(`${kind} 이름`,n.title,async(v)=>{if(v){n.title=v;n.titleLocked=true;await saveCharacter(n,true);render();}})}];if(n.type==="character"&&variant==="lucy")items.push({icon:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h7"/></svg>',label:`표시 형식 · ${lucyCharacterStyle(n)==="text"?"텍스트형":"이미지형"}`,fn:()=>openCharacterDisplayStylePicker(n)});if(!(n.type==="character"&&variant==="lucy"&&lucyCharacterStyle(n)==="text"))items.push({icon:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.7"/><path d="M21 16l-5-5L5 21"/></svg>',label:"대표 썸네일 지정",fn:()=>chooseCharacterCover(n)});items.push({icon:IC.color,label:"색상 지정",fn:()=>showChipPicker(n.id)},{icon:IC.save,label:`${kind} HTML로 저장`,fn:async()=>{if(st.charEdit)await flushCharacter();chooseCharacterExportOptions(n.id);}});if(single)items.push({icon:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M18 16v5M15.5 18.5h5"/></svg>',label:`${baseKind} 모음으로 확장`,fn:()=>setCharacterMode(n,"collection")});else if(d.pages.length===1)items.push({icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>',label:`단일 ${baseKind}로 정리`,fn:()=>setCharacterMode(n,"single")});if(!single&&d.pages.length>1)items.push({icon:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="10" height="14" rx="2"/><path d="M9 8h2M9 12h2"/><path d="M15 10h4v10H9v-2"/></svg>',label:`현재 페이지를 단일 ${baseKind}로 분리 복사`,fn:()=>copyActiveCharacterPageAsSingle(n)},{icon:'<svg viewBox="0 0 24 24"><path d="M8 5h8M8 19h8M12 5v14"/><path d="M5 12h14"/></svg>',label:"현재 캐릭터 페이지 삭제",danger:true,fn:()=>removeActiveCharacterPage()});items.push({icon:IC.move,label:"다른 프로젝트로 이동",fn:()=>pickTargetProject(n.projectId,(pid)=>moveNote(n.id,pid).then(render))},{icon:IC.copy,label:"선택 위치로 복제",fn:()=>pickTargetProject(n.projectId,(pid)=>duplicateNote(n.id,pid).then(render))},{icon:IC.del,label:`${kind} 삭제`,danger:true,fn:()=>confirmModal(`${kind} 삭제`, `'${n.title}'를 삭제할까요?`,"삭제",true,async()=>{await deleteNote(n.id);back();})});openSheet(n.title,items);}
+  /* ---------- v0.7.3 requested adjustments: document export, diary date panel, character tabs ---------- */
+  function diaryDdayCropMetrics() {
+    const probe = $("diaryDdayPreview") || document.querySelector(".diary-dday-card");
+    const rect = probe && probe.getBoundingClientRect ? probe.getBoundingClientRect() : null;
+    const fallbackWidth = Math.min(Math.max((window.innerWidth || 390) - 32, 320), 980);
+    const widthOnScreen = rect && rect.width > 30 ? rect.width : fallbackWidth;
+    const heightOnScreen = rect && rect.height > 20 ? rect.height : Math.max(80, Math.min(180, widthOnScreen * 0.42));
+    const ratio = Math.max(1.25, Math.min(3.2, widthOnScreen / Math.max(1, heightOnScreen)));
+    const width = Math.max(900, Math.min(1800, Math.round(widthOnScreen * 2)));
+    return { ratio, width, height: Math.max(360, Math.round(width / ratio)) };
+  }
+  function openDiaryDateSchedulePanel(date, diaryId) {
+    const diary = diaryById(diaryId) || currentDiary(), iso = normalizeISODate(date, todayISO());
+    const rows = diarySchedulesFor(diary, iso).map((item) => `<button type="button" class="diary-schedule-item" data-date-schedule-edit="${esc(item.id)}"><time>${esc(diaryTimeLabel(item.start, item.end))}</time><span>${esc(item.title)}</span></button>`).join("");
+    openModal(`<h3>${esc(diaryDateLongLabel(iso))}</h3><p class="m-sub">${esc(diary.name)}에 기록된 일정입니다.</p><div class="diary-date-summary"><button type="button" class="diary-date-add" id="diaryDateAdd">+ 새 일정 추가</button><div class="diary-date-list">${rows || '<div class="diary-date-empty">이 날짜에 기록된 일정이 아직 없어요</div>'}</div></div><div class="m-row"><button class="m-btn" id="diaryDateClose">닫기</button></div>`);
+    $on("diaryDateAdd", "click", () => openDiaryScheduleForm(null, iso, diary.id));
+    $("modalBox").querySelectorAll("[data-date-schedule-edit]").forEach((button) => button.addEventListener("click", () => openDiaryScheduleForm(button.dataset.dateScheduleEdit, iso, diary.id)));
+    $on("diaryDateClose", "click", closeModal);
+  }
+  function bindDiaryHome(host, diary) {
+    host.querySelectorAll("[data-diary-tab]").forEach((button) => button.addEventListener("click", async () => {
+      diary.layout.activeTab = button.dataset.diaryTab; diary.updatedAt = now(); await persistDiary();
+    }));
+    host.querySelectorAll("[data-diary-action]").forEach((button) => button.addEventListener("click", () => runDiaryAction(button.dataset.diaryAction, diary)));
+    host.querySelectorAll("[data-diary-open]").forEach((button) => button.addEventListener("click", async () => { diaryConfig().activeId = button.dataset.diaryOpen; await persistDiary(); }));
+    host.querySelectorAll("[data-dday-edit]").forEach((button) => button.addEventListener("click", () => openDiaryDdayForm(button.dataset.ddayEdit)));
+    host.querySelectorAll("[data-schedule-edit]").forEach((button) => button.addEventListener("click", () => openDiaryScheduleForm(button.dataset.scheduleEdit)));
+    host.querySelectorAll("[data-schedule-date]").forEach((button) => button.addEventListener("click", () => openDiaryDateSchedulePanel(button.dataset.scheduleDate, diary.id)));
+    host.querySelectorAll("[data-todo-edit]").forEach((button) => button.addEventListener("click", (event) => { event.preventDefault(); openDiaryTodoForm(button.dataset.todoEdit); }));
+    host.querySelectorAll("[data-todo-toggle]").forEach((input) => input.addEventListener("change", async () => {
+      const todo = diary.todos.find((item) => item.id === input.dataset.todoToggle); if (!todo) return;
+      todo.done = input.checked; todo.updatedAt = now(); diary.updatedAt = now(); await persistDiary();
+    }));
+  }
+  function openQuickMenuSlotTypePicker(index) {
+    const mode = lucyQuickMode(), blank = emptyQuickMenuSlot(index);
+    const diaryChoices = [
+      ["다이어리 작성", "작성 바로가기", "빠른 추가 · 디데이 · 투두 · 일정"],
+      ["다이어리 관리", "관리 바로가기", "다이어리 세트 · 메인 구성 · 설정"],
+      ["모드 전환", "모드 전환", "메모 모드로 이동"]
+    ].map(([group, label, meta]) => `<button type="button" class="qm-choice" data-qm-kind="function" data-qm-group="${esc(group)}">${quickMenuSlotMedia(Object.assign(blank, { kind:"function", functionId: group === "모드 전환" ? "switch-memo-mode" : group === "다이어리 관리" ? "diary-manage" : "diary-quick-add" }))}<span class="qm-choice-copy"><b>${esc(label)}</b><small>${esc(meta)}</small></span><span class="qm-choice-arrow">›</span></button>`).join("");
+    const choices = mode === "diary"
+      ? diaryChoices
+      : `<button type="button" class="qm-choice" data-qm-kind="function">${quickMenuSlotMedia(Object.assign(blank,{kind:"function",functionId:"home"}))}<span class="qm-choice-copy"><b>기능 바로가기</b><small>홈 · 설정 · 화면 설정 · 모드 전환</small></span><span class="qm-choice-arrow">›</span></button><button type="button" class="qm-choice" data-qm-kind="project">${quickMenuSlotMedia(Object.assign(blank,{kind:"project"}))}<span class="qm-choice-copy"><b>프로젝트 바로가기</b><small>특정 프로젝트를 한 번에 열기</small></span><span class="qm-choice-arrow">›</span></button><button type="button" class="qm-choice" data-qm-kind="note">${quickMenuSlotMedia(Object.assign(blank,{kind:"note"}))}<span class="qm-choice-copy"><b>내 글 바로가기</b><small>특정 메모를 바로 열기</small></span><span class="qm-choice-arrow">›</span></button><button type="button" class="qm-choice" data-qm-kind="create">${quickMenuSlotMedia(Object.assign(blank,{kind:"create"}))}<span class="qm-choice-copy"><b>메모 바로 만들기</b><small>타입과 저장 위치를 미리 지정</small></span><span class="qm-choice-arrow">›</span></button>`;
+    openModal(`<h3>슬롯 ${index + 1} 등록</h3><p class="m-sub">바로 실행할 동작을 고르세요.</p><div class="qm-choice-list">${choices}</div><div class="m-row"><button class="m-btn" id="qmTypeCancel">취소</button></div>`);
+    $("modalBox").querySelectorAll("[data-qm-kind]").forEach((button) => button.addEventListener("click", () => {
+      const kind = button.dataset.qmKind;
+      if (kind === "function") openQuickMenuFunctionPicker(index, button.dataset.qmGroup || "");
+      else if (kind === "project") openQuickMenuProjectPicker(index);
+      else if (kind === "note") openQuickMenuNotePicker(index);
+      else openQuickMenuCreateTypePicker(index);
+    }));
+    $on("qmTypeCancel", "click", closeModal);
+  }
+  function openQuickMenuFunctionPicker(index, groupFilter) {
+    const mode = lucyQuickMode(), blank = emptyQuickMenuSlot(index);
+    const funcs = lucyQuickMenuFunctions(mode).filter((item) => !groupFilter || item.group === groupFilter);
+    const groups = [...new Set(funcs.map((item) => item.group))];
+    const groupMarkup = groups.map((group) => {
+      const rows = funcs.filter((item) => item.group === group).map((item) => `<button type="button" class="qm-picker-row qm-function-row" data-qm-function="${esc(item.id)}">${quickMenuSlotMedia(Object.assign(blank,{kind:"function",functionId:item.id}))}<span><b>${esc(item.label)}</b><small>${esc(item.meta)}</small></span><i>›</i></button>`).join("");
+      return `<section class="qm-function-group"><h4>${esc(group)}</h4><div class="qm-picker-list">${rows}</div></section>`;
+    }).join("");
+    openModal(`<h3>${groupFilter ? esc(groupFilter) : (mode === "diary" ? "다이어리" : "메모")} 기능 바로가기</h3><p class="m-sub">현재 모드에 맞는 기능만 표시합니다.</p><div class="qm-function-picker">${groupMarkup}</div><div class="m-row"><button class="m-btn" id="qmFunctionBack">뒤로</button></div>`);
+    $("modalBox").querySelectorAll("[data-qm-function]").forEach((button) => button.addEventListener("click", async () => { await setQuickMenuSlot(index, { kind:"function", functionId:button.dataset.qmFunction }); openQuickMenuSlotEditor(index); }));
+    $on("qmFunctionBack", "click", () => openQuickMenuSlotTypePicker(index));
+  }
+  async function lucyEnsureHtml2Canvas() {
+    if (window.html2canvas) return window.html2canvas;
+    await loadScriptOnce("./html2canvas.min.js");
+    if (!window.html2canvas) throw new Error("html2canvas unavailable");
+    return window.html2canvas;
+  }
+  function lucyCanvasBlob(canvas, type) {
+    return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), type || "image/png"));
+  }
+  async function lucyExportDocumentPreviewPdf(n, d) {
+    await renderPdfPage(n.id);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const host = $("docPreview"), attachment = d.attachments[0];
+    if (!host || host.hidden || !host.innerHTML.trim()) { toast("PDF로 만들 미리보기를 찾지 못했어요"); return; }
+    const html2canvas = await lucyEnsureHtml2Canvas();
+    const clone = host.cloneNode(true);
+    clone.id = "docPreviewPdfExport";
+    clone.style.position = "fixed"; clone.style.left = "-10000px"; clone.style.top = "0";
+    clone.style.width = `${Math.max(720, Math.min(980, host.clientWidth || host.scrollWidth || 900))}px`;
+    clone.style.height = "auto"; clone.style.maxHeight = "none"; clone.style.overflow = "visible";
+    const sticky = clone.querySelector(".doc-viewer-head"); if (sticky) sticky.style.position = "static";
+    document.body.appendChild(clone);
+    try {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready.catch(() => {});
+      const bg = getComputedStyle(host).backgroundColor || "#ffffff";
+      const canvas = await html2canvas(clone, { backgroundColor:bg, scale:Math.min(2, window.devicePixelRatio || 1.5), useCORS:true, logging:false });
+      const lib = await ensurePdfLib(), outDoc = await lib.PDFDocument.create();
+      const pageW = 595.28, pageH = 841.89, margin = 32, drawW = pageW - margin * 2;
+      const pxPerPt = canvas.width / drawW, chunkPxH = Math.max(1, Math.floor((pageH - margin * 2) * pxPerPt));
+      for (let y = 0; y < canvas.height; y += chunkPxH) {
+        const h = Math.min(chunkPxH, canvas.height - y), chunk = document.createElement("canvas");
+        chunk.width = canvas.width; chunk.height = h;
+        chunk.getContext("2d").drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+        const blob = await lucyCanvasBlob(chunk, "image/png"); if (!blob) continue;
+        const image = await outDoc.embedPng(new Uint8Array(await blob.arrayBuffer()));
+        const drawH = h / pxPerPt, page = outDoc.addPage([pageW, pageH]);
+        page.drawImage(image, { x:margin, y:pageH - margin - drawH, width:drawW, height:drawH });
+      }
+      if (!outDoc.getPageCount()) { toast("PDF로 만들 페이지가 없어요"); return; }
+      const bytes = await outDoc.save();
+      const base = documentFileBaseName(n.title || (attachment && attachment.name) || "document-workshop");
+      downloadBlob(new Blob([bytes], { type:"application/pdf" }), `${base}-viewer.pdf`);
+      toast("뷰어 내용을 PDF로 내보냈어요");
+    } finally {
+      clone.remove();
+    }
+  }
+  async function exportPdfOriginal(id) {
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    await flushPdfWorkshop(true);
+    const d = normalizePdfData(n.data || {});
+    if (!isPdfDocumentData(d)) {
+      try { await lucyExportDocumentPreviewPdf(n, d); }
+      catch (e) { console.warn("document pdf export", e); toast("뷰어 내용을 PDF로 내보내지 못했어요"); }
+      return;
+    }
+    if (!d.pages.length) {
+      const rec = await pdfRecord(n);
+      if (!rec) { toast("내보낼 PDF가 없어요"); return; }
+      const name = pdfAttachment(n)?.name || rec.name || `${pdfFileBaseName(n.title)}.pdf`;
+      downloadBlob(rec.blob, /\.pdf$/i.test(name) ? name : `${name}.pdf`); toast("원본 PDF를 내보냈어요"); return;
+    }
+    try {
+      const lib = await ensurePdfLib(), outDoc = await lib.PDFDocument.create(), sourceDocs = new Map();
+      for (const entry of d.pages) {
+        let page = null;
+        if (entry.kind === "blank") page = outDoc.addPage([entry.width || 595, entry.height || 842]);
+        else {
+          const attachment = pdfAttachmentById(d, entry.attachmentId), rec = await pdfRecordByAttachment(attachment);
+          if (!rec || !rec.blob) continue;
+          if (!sourceDocs.has(attachment.id)) sourceDocs.set(attachment.id, await lib.PDFDocument.load(await rec.blob.arrayBuffer(), { ignoreEncryption:true }));
+          const srcDoc = sourceDocs.get(attachment.id), pageIndex = Math.max(0, Math.min(srcDoc.getPageCount() - 1, (entry.sourcePage || 1) - 1));
+          const copied = await outDoc.copyPages(srcDoc, [pageIndex]); page = outDoc.addPage(copied[0]);
+        }
+        if (!page) continue;
+        if (entry.rotation) page.setRotation(lib.degrees(entry.rotation));
+        await drawPdfTextBoxes(outDoc, page, entry);
+      }
+      if (!outDoc.getPageCount()) { toast("내보낼 페이지가 없어요"); return; }
+      const bytes = await outDoc.save();
+      downloadBlob(new Blob([bytes], { type:"application/pdf" }), `${pdfFileBaseName(n.title || "pdf-workshop")}-edited.pdf`);
+      toast("편집한 PDF를 내보냈어요");
+    } catch (e) { console.warn("pdf export", e); toast("문서 내보내기에 실패했어요"); }
+  }
+  const CHAR_TAB_KEYS = ["profile", "story", "relations", "comment"];
+  const CHAR_TAB_INFO = {
+    profile: ["상세", "기본 설명과 태그"],
+    story: ["서사", "캐릭터 서사 구성"],
+    relations: ["관계설정", "연결 캐릭터와 관계"],
+    comment: ["코멘트", "크리에이터 코멘트"]
+  };
+  let lucyCharTab = "profile";
+  function lucyNormalizeSections(value, fallback, defaultTitle) {
+    const source = Array.isArray(value) ? value : [], out = [];
+    source.slice(0, 24).forEach((item) => {
+      const obj = item && typeof item === "object" ? item : {};
+      out.push({ id: typeof obj.id === "string" && obj.id ? obj.id : uid(), title: cleanImportedText(String(obj.title || ""), 80).trim() || defaultTitle || "설명", body: String(obj.body ?? obj.detail ?? "") });
+    });
+    if (!out.length) out.push({ id:uid(), title:defaultTitle || "상세 설명", body:String(fallback || "") });
+    return out;
+  }
+  function lucySectionsPlain(sections) {
+    return (sections || []).map((item) => {
+      const title = String(item.title || "").trim(), body = String(item.body || "");
+      if (!body.trim()) return "";
+      return `${title ? `[${title}] ` : ""}${body}`;
+    }).filter(Boolean).join("\n\n");
+  }
+  function lucySectionsBodyText(sections) { return (sections || []).map((item) => String(item.body || "")).join("\n\n").trim(); }
+  function normalizeCharacterTabVisibility(value) {
+    const src = value && typeof value === "object" ? value : {};
+    const out = { profile:src.profile !== false, story:src.story !== false, relations:src.relations !== false, comment:src.comment !== false };
+    if (!CHAR_TAB_KEYS.some((key) => out[key])) out.profile = true;
+    return out;
+  }
+  function normalizeCharacterRelations(value) {
+    return (Array.isArray(value) ? value : []).slice(0, 80).map((item) => {
+      const src = item && typeof item === "object" ? item : {};
+      return { id: typeof src.id === "string" && src.id ? src.id : uid(), targetNoteId:String(src.targetNoteId || src.noteId || ""), targetPageId:String(src.targetPageId || src.pageId || ""), noteTitle:cleanImportedText(String(src.noteTitle || ""), 120), pageName:cleanImportedText(String(src.pageName || ""), 120), memo:String(src.memo || "") };
+    }).filter((item) => item.targetNoteId && item.targetPageId);
+  }
+  function makeCharacterPage() {
+    return { id:uid(), portrait:null, square:null, gallery:[], creatorMemo:"", ko:{ name:"", tags:[], detail:"", sections:[{ id:uid(), title:"상세 설명", body:"" }] }, en:{ name:"", tags:[], detail:"", sections:[{ id:uid(), title:"Description", body:"" }] }, story:{ detail:"", sections:[{ id:uid(), title:"서사", body:"" }] }, relations:[], visibleTabs:{ profile:true, story:true, relations:true, comment:true } };
+  }
+  function ensureCharacterPage(page) {
+    const p = page && typeof page === "object" ? page : makeCharacterPage();
+    if (!p.id) p.id = uid();
+    p.portrait = typeof p.portrait === "string" ? p.portrait : null;
+    p.square = typeof p.square === "string" ? p.square : null;
+    p.gallery = Array.isArray(p.gallery) ? p.gallery.filter((x) => typeof x === "string") : [];
+    p.creatorMemo = normalizeCreatorMemo(p.creatorMemo);
+    ["ko", "en"].forEach((lang) => {
+      p[lang] = p[lang] && typeof p[lang] === "object" ? p[lang] : {};
+      p[lang].name = String(p[lang].name || "");
+      p[lang].detail = String(p[lang].detail || "");
+      p[lang].tags = Array.isArray(p[lang].tags) ? p[lang].tags.map(String).filter(Boolean) : (p[lang].brief ? [String(p[lang].brief)] : []);
+      p[lang].sections = lucyNormalizeSections(p[lang].sections, p[lang].detail, lang === "ko" ? "상세 설명" : "Description");
+      delete p[lang].brief;
+    });
+    p.story = p.story && typeof p.story === "object" ? p.story : { detail:String(p.storyDetail || ""), sections:null };
+    p.story.detail = String(p.story.detail || "");
+    p.story.sections = lucyNormalizeSections(p.story.sections, p.story.detail, "서사");
+    p.relations = normalizeCharacterRelations(p.relations);
+    p.visibleTabs = normalizeCharacterTabVisibility(p.visibleTabs);
+    return p;
+  }
+  function ensureCharacterData(n) {
+    const d = n.data = n.data && typeof n.data === "object" ? n.data : {};
+    d.mode = d.mode === "single" ? "single" : "collection";
+    d.cardTypeVersion = 3;
+    d.cardVariant = d.cardVariant === "lucy" ? "lucy" : "lumi";
+    d.displayStyle = d.displayStyle === "text" ? "text" : "image";
+    d.pages = Array.isArray(d.pages) && d.pages.length ? d.pages.map(ensureCharacterPage) : [makeCharacterPage()];
+    if (!d.activeId || !d.pages.some((p) => p.id === d.activeId)) d.activeId = d.pages[0].id;
+    d.coverImage = safeImageSource(d.coverImage) || null;
+    return d;
+  }
+  function characterTextSnapshot(n, fromEditor) {
+    const d = ensureCharacterData(n), copy = { activeId:d.activeId, pages:d.pages.map((p) => ({ id:p.id, ko:{ name:p.ko.name, tags:p.ko.tags.slice(), detail:p.ko.detail, sections:jsonCopy(p.ko.sections) || [] }, en:{ name:p.en.name, tags:p.en.tags.slice(), detail:p.en.detail, sections:jsonCopy(p.en.sections) || [] }, story:{ detail:p.story.detail, sections:jsonCopy(p.story.sections) || [] }, relations:jsonCopy(p.relations) || [], visibleTabs:jsonCopy(p.visibleTabs) || {}, creatorMemo:p.creatorMemo })) };
+    if (fromEditor && st.charEdit) {
+      const page = copy.pages.find((p) => p.id === d.activeId) || copy.pages[0];
+      if (page) {
+        if ($("charKoName")) page.ko.name = $("charKoName").value;
+        if ($("charKoDetail")) page.ko.detail = $("charKoDetail").value;
+        if ($("charStoryDetail")) page.story.detail = $("charStoryDetail").value;
+        page.creatorMemo = getCreatorMemoHtml();
+      }
+    }
+    return copy;
+  }
+  function charSectionState(page, key) { return key === "story" ? page.story : page.ko; }
+  function charSectionTextareaId(key) { return key === "story" ? "charStoryDetail" : "charKoDetail"; }
+  function lucyUpdateCharacterCounters(n) {
+    const page = activeCharacterPage(n);
+    const profileText = lucyCharacterVariant(n) === "lucy" ? lucySectionsBodyText(page.ko.sections) : String(page.ko.detail || "");
+    const storyText = lucySectionsBodyText(page.story.sections);
+    [["charKoTok", profileText], ["charStoryTok", storyText], ["charRTok", profileText]].forEach(([id, text]) => {
+      const el = $(id); if (!el) return;
+      const all = [...String(text || "")].length, without = String(text || "").replace(/\s/g, "").length;
+      el.innerHTML = `<b>${all.toLocaleString()}</b>자 · 공백 제외 ${without.toLocaleString()}`;
+    });
+  }
+  function updateCharTokens(n) { lucyUpdateCharacterCounters(n); }
+  function lucyEnsureSectionHost(key) {
+    const textarea = $(charSectionTextareaId(key)); if (!textarea) return null;
+    let host = textarea.parentElement.querySelector(`.char-section-editor[data-char-sections="${key}"]`);
+    if (!host) { host = document.createElement("div"); host.className = "char-section-editor"; host.dataset.charSections = key; textarea.insertAdjacentElement("beforebegin", host); }
+    return { host, textarea };
+  }
+  function lucyRenderSectionEditors(n) {
+    const page = activeCharacterPage(n), sectionMode = lucyCharacterVariant(n) === "lucy";
+    ["profile", "story"].forEach((key) => {
+      const pair = lucyEnsureSectionHost(key); if (!pair) return;
+      const { host, textarea } = pair, state = charSectionState(page, key);
+      host.classList.toggle("is-open", sectionMode); textarea.hidden = sectionMode; textarea.setAttribute("aria-hidden", sectionMode ? "true" : "false");
+      if (!sectionMode) return;
+      const defaultTitle = key === "story" ? "서사" : "상세 설명";
+      const addTitle = key === "story" ? "새 서사" : "새 설명";
+      const placeholder = key === "story" ? "이 항목의 서사를 입력하세요" : "이 항목의 설명을 입력하세요";
+      const sections = state.sections = lucyNormalizeSections(state.sections, state.detail, defaultTitle);
+      host.innerHTML = `${sections.map((item) => `<article class="char-section-card" data-char-section="${esc(item.id)}"><div class="char-section-head"><input type="text" maxlength="80" value="${esc(item.title)}" placeholder="항목 제목" data-char-section-title="${esc(item.id)}"><button type="button" class="char-section-remove" data-char-section-remove="${esc(item.id)}" aria-label="이 항목 삭제">×</button></div><textarea class="m-textarea" data-char-section-body="${esc(item.id)}" placeholder="${esc(placeholder)}">${esc(item.body)}</textarea></article>`).join("")}<button type="button" class="char-section-add" data-char-section-add="${key}"><span>＋</span> ${key === "story" ? "서사 항목 추가" : "설명 항목 추가"}</button>`;
+      const sync = () => { state.detail = lucySectionsPlain(state.sections); textarea.value = state.detail; scheduleCharSave(); lucyUpdateCharacterCounters(n); };
+      host.querySelectorAll("[data-char-section-title]").forEach((input) => input.addEventListener("input", () => { const item = state.sections.find((x) => x.id === input.dataset.charSectionTitle); if (!item) return; item.title = input.value; sync(); }));
+      host.querySelectorAll("[data-char-section-body]").forEach((input) => input.addEventListener("input", () => { const item = state.sections.find((x) => x.id === input.dataset.charSectionBody); if (!item) return; item.body = input.value; sync(); }));
+      host.querySelectorAll("[data-char-section-remove]").forEach((button) => button.addEventListener("click", () => { if (state.sections.length <= 1) { toast("항목은 하나 이상 남겨 주세요"); return; } state.sections = state.sections.filter((x) => x.id !== button.dataset.charSectionRemove); sync(); lucyRenderSectionEditors(n); }));
+      const add = host.querySelector("[data-char-section-add]");
+      if (add) add.addEventListener("click", () => { state.sections.push({ id:uid(), title:addTitle, body:"" }); sync(); lucyRenderSectionEditors(n); });
+    });
+  }
+  function charVisibleTabs(page) { return normalizeCharacterTabVisibility(page && page.visibleTabs); }
+  function firstVisibleCharTab(page) { const visible = charVisibleTabs(page); return CHAR_TAB_KEYS.find((key) => visible[key]) || "profile"; }
+  function updateCharacterTabUi(n) {
+    const page = activeCharacterPage(n), visible = charVisibleTabs(page);
+    if (!visible[lucyCharTab]) lucyCharTab = firstVisibleCharTab(page);
+    document.querySelectorAll("#screen-character [data-char-tab]").forEach((button) => {
+      const key = button.dataset.charTab, on = key === lucyCharTab;
+      button.hidden = !visible[key]; button.classList.toggle("active", on); button.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll("#screen-character [data-char-panel]").forEach((panel) => { panel.hidden = panel.dataset.charPanel !== lucyCharTab; });
+    document.querySelectorAll("#screen-character [data-char-read-panel]").forEach((panel) => { panel.hidden = panel.dataset.charReadPanel !== lucyCharTab; });
+  }
+  function setCharTab(tab) {
+    lucyCharTab = CHAR_TAB_KEYS.includes(tab) ? tab : "profile";
+    charLang = "ko";
+    const n = getNote(st.curNoteId);
+    if (n && isCharacterCardType(n)) { renderCharNav(n, false); renderCharNav(n, true); updateCharacterTabUi(n); }
+  }
+  function setCharLang(lang) { setCharTab(lang === "story" || lang === "relations" || lang === "comment" ? lang : "profile"); }
+  function renderCharImagesEdit(n) {
+    const page = activeCharacterPage(n), portrait = $("charPortrait"), square = $("charSquare");
+    if (!portrait || !square) return;
+    portrait.innerHTML = page.portrait ? `<img src="${page.portrait}" alt=""><button class="per-del" aria-label="삭제">${PER_X}</button>` : PER_PH_PT;
+    square.innerHTML = page.square ? `<img src="${page.square}" alt=""><button class="per-del" aria-label="삭제">${PER_X}</button>` : PER_PH_SQ;
+    const pd = portrait.querySelector(".per-del"), sd = square.querySelector(".per-del");
+    if (pd) pd.addEventListener("click", (e) => { e.stopPropagation(); removeCharImage("portrait"); });
+    if (sd) sd.addEventListener("click", (e) => { e.stopPropagation(); removeCharImage("square"); });
+  }
+  function charRelationTarget(rel) {
+    const note = getNote(rel.targetNoteId);
+    if (!note || !isCharacterCardType(note)) return { note:null, page:null, title:rel.noteTitle || "삭제된 캐릭터", name:rel.pageName || "연결 없음", image:null };
+    const data = ensureCharacterData(note), page = data.pages.find((p) => p.id === rel.targetPageId) || data.pages[0];
+    return { note, page, title:note.title || rel.noteTitle || "캐릭터", name:page ? charPageName(page, "ko") : (rel.pageName || "캐릭터"), image:page ? (page.square || page.portrait || DEFAULT_ICON) : DEFAULT_ICON };
+  }
+  async function openCharacterRelationTarget(rel) {
+    const target = charRelationTarget(rel);
+    if (!target.note || !target.page) { toast("연결된 캐릭터를 찾지 못했어요"); return; }
+    if (st.charEdit) await flushCharacter();
+    const data = ensureCharacterData(target.note); data.activeId = target.page.id;
+    st.curProjectId = target.note.projectId; st.curNoteId = target.note.id; st.charEdit = false; lucyCharTab = "profile";
+    await saveCharacter(target.note, true); go({ s:"character" });
+  }
+  function renderCharacterRelationsEdit(n) {
+    const page = activeCharacterPage(n), host = $("charRelationList"); if (!host) return;
+    const relations = page.relations = normalizeCharacterRelations(page.relations);
+    host.innerHTML = relations.length ? relations.map((rel) => {
+      const target = charRelationTarget(rel);
+      return `<article class="char-relation-row" data-char-rel="${esc(rel.id)}"><div class="char-relation-row-head"><button type="button" class="char-relation-chip" data-char-rel-open="${esc(rel.id)}"><img src="${esc(target.image || DEFAULT_ICON)}" alt=""><span>${esc(target.name)} · ${esc(target.title)}</span></button><button type="button" class="char-relation-remove" data-char-rel-remove="${esc(rel.id)}" aria-label="관계 삭제">×</button></div><textarea class="m-textarea" data-char-rel-memo="${esc(rel.id)}" placeholder="이 캐릭터와의 관계를 적어주세요">${esc(rel.memo || "")}</textarea></article>`;
+    }).join("") : '<div class="char-relation-empty">아직 연결한 캐릭터가 없어요</div>';
+    host.querySelectorAll("[data-char-rel-open]").forEach((button) => button.addEventListener("click", () => { const rel = relations.find((item) => item.id === button.dataset.charRelOpen); if (rel) void openCharacterRelationTarget(rel); }));
+    host.querySelectorAll("[data-char-rel-remove]").forEach((button) => button.addEventListener("click", () => { page.relations = page.relations.filter((item) => item.id !== button.dataset.charRelRemove); scheduleCharSave(); renderCharacterRelationsEdit(n); }));
+    host.querySelectorAll("[data-char-rel-memo]").forEach((input) => input.addEventListener("input", () => { const rel = page.relations.find((item) => item.id === input.dataset.charRelMemo); if (!rel) return; rel.memo = input.value; scheduleCharSave(); }));
+    const add = $("charRelationAdd"); if (add) add.onclick = () => openCharacterRelationPicker(n);
+  }
+  function renderCharacterRelationsRead(n) {
+    const page = activeCharacterPage(n), host = $("charReadRelations"); if (!host) return;
+    const relations = normalizeCharacterRelations(page.relations);
+    host.innerHTML = relations.length ? `<div class="char-relation-list">${relations.map((rel) => { const target = charRelationTarget(rel); return `<article class="char-relation-row"><div class="char-relation-row-head"><button type="button" class="char-relation-chip" data-char-read-rel="${esc(rel.id)}"><img src="${esc(target.image || DEFAULT_ICON)}" alt=""><span>${esc(target.name)} · ${esc(target.title)}</span></button></div>${rel.memo ? `<p class="per-read-detail" style="margin:0">${esc(rel.memo)}</p>` : ""}</article>`; }).join("")}</div>` : '<div class="char-relation-empty">표시할 관계가 없어요</div>';
+    host.querySelectorAll("[data-char-read-rel]").forEach((button) => button.addEventListener("click", () => { const rel = relations.find((item) => item.id === button.dataset.charReadRel); if (rel) void openCharacterRelationTarget(rel); }));
+  }
+  function openCharacterRelationPicker(n) {
+    const current = activeCharacterPage(n), rows = [];
+    st.notes.filter((note) => note && note.type === "character").forEach((note) => {
+      const d = ensureCharacterData(note);
+      d.pages.forEach((page) => {
+        if (note.id === n.id && page.id === current.id) return;
+        rows.push({ note, page, name:charPageName(page, "ko"), image:page.square || page.portrait || DEFAULT_ICON });
+      });
+    });
+    openModal(`<h3>관계 캐릭터 연결</h3><p class="m-sub">캐릭터 또는 다인 캐릭터의 한 페이지를 연결합니다.</p><div class="char-relation-choice-list">${rows.length ? rows.map((row, index) => `<button type="button" class="char-relation-choice" data-char-rel-pick="${index}"><img src="${esc(row.image)}" alt=""><span><b>${esc(row.name)}</b><small>${esc(row.note.title || "캐릭터")}</small></span></button>`).join("") : '<div class="char-relation-empty">연결할 다른 캐릭터가 아직 없어요</div>'}</div><div class="m-row"><button class="m-btn" id="charRelPickCancel">닫기</button></div>`);
+    $("modalBox").querySelectorAll("[data-char-rel-pick]").forEach((button) => button.addEventListener("click", () => {
+      const picked = rows[Number(button.dataset.charRelPick)]; if (!picked) return;
+      current.relations = normalizeCharacterRelations(current.relations);
+      current.relations.push({ id:uid(), targetNoteId:picked.note.id, targetPageId:picked.page.id, noteTitle:picked.note.title || "", pageName:picked.name, memo:"" });
+      closeModal(); scheduleCharSave(); renderCharacterRelationsEdit(n); toast("관계 캐릭터를 연결했어요");
+    }));
+    $on("charRelPickCancel", "click", closeModal);
+  }
+  function lucyReadSections(page, key) {
+    const state = key === "story" ? page.story : page.ko;
+    const sections = lucyNormalizeSections(state.sections, state.detail, key === "story" ? "서사" : "상세 설명").filter((item) => String(item.title || item.body || "").trim());
+    if (!sections.length || !sections.some((item) => String(item.body || "").trim())) return `<div class="char-relation-empty">작성된 ${key === "story" ? "서사" : "설명"}이 없어요</div>`;
+    return `<div class="char-read-sections">${sections.map((item) => `<article class="char-read-section"><h4>${esc(item.title || (key === "story" ? "서사" : "설명"))}</h4><p>${esc(item.body || "")}</p></article>`).join("")}</div>`;
+  }
+  function renderCharacterEdit(n) {
+    const page = activeCharacterPage(n);
+    charLang = "ko";
+    if ($("charKoName")) $("charKoName").value = page.ko.name || "";
+    if ($("charKoDetail")) $("charKoDetail").value = page.ko.detail || "";
+    if ($("charStoryDetail")) $("charStoryDetail").value = page.story.detail || "";
+    renderCreatorEditor(page.creatorMemo);
+    const hilite = $("charCreatorHiliteBtn"); if (hilite) hilite.style.setProperty("--hilite-color", getHiliteColor());
+    renderCharImagesEdit(n); renderCharTags(n, "ko"); renderCharGallery(n, false); lucyRenderSectionEditors(n); renderCharacterRelationsEdit(n); lucyUpdateCharacterCounters(n); updateCharacterTabUi(n);
+  }
+  function renderCharacterRead(n) {
+    const page = activeCharacterPage(n), o = page.ko || {}, textMode = lucyCharacterStyle(n) === "text", useSections = lucyCharacterVariant(n) === "lucy";
+    charLang = "ko";
+    const portrait = $("charRPortrait"), square = $("charRSquare");
+    if (portrait) {
+      portrait.hidden = textMode;
+      if (!textMode) { portrait.innerHTML = page.portrait ? `<img src="${page.portrait}" alt="">` : '<div class="per-ph"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><circle cx="9" cy="9" r="1.8"/><path d="M20 15l-5-4L6 19"/></svg><span>이미지 없음</span></div>'; portrait.onclick = page.portrait ? () => openLightbox(page.portrait, [page.portrait], 0) : null; }
+    }
+    if (square) { square.hidden = textMode; const sq = page.square || page.portrait; square.innerHTML = `<img src="${sq || DEFAULT_ICON}" alt="">`; square.onclick = sq ? () => openLightbox(sq, [sq], 0) : null; }
+    if ($("charRName")) $("charRName").textContent = o.name || "";
+    const tags = $("charRTags"); if (tags) { tags.innerHTML = ""; (o.tags || []).forEach((tag) => { const chip = document.createElement("span"); chip.className = "kw-chip"; chip.textContent = tag; tags.appendChild(chip); }); }
+    if ($("charRDetail")) $("charRDetail").innerHTML = useSections ? lucyReadSections(page, "profile") : personaDetailHTML(o.detail);
+    if ($("charReadStory")) $("charReadStory").innerHTML = lucyReadSections(page, "story");
+    renderCharacterRelationsRead(n);
+    const creator = $("charRCreator"), body = $("charRCreatorBody"), creatorHtml = normalizeCreatorMemo(page.creatorMemo);
+    if (creator) creator.hidden = !creatorHtml.trim();
+    if (body) body.innerHTML = creatorHtml;
+    const tokenText = useSections ? lucySectionsBodyText(page.ko.sections) : String(o.detail || ""), token = $("charRTok");
+    if (token) { const all = [...tokenText].length, without = tokenText.replace(/\s/g, "").length; token.innerHTML = `<b>${all.toLocaleString()}</b>자 · 공백 제외 ${without.toLocaleString()}`; }
+    renderCharGallery(n, true);
+    const gallerySection = $("charRGallery") && $("charRGallery").closest(".per-section"); if (gallerySection) gallerySection.hidden = textMode && !(page.gallery && page.gallery.length);
+    renderCharNav(n, true);
+    const d = ensureCharacterData(n), sw = $("charPageSwitch"), index = d.pages.findIndex((p) => p.id === d.activeId);
+    if (sw) { sw.hidden = d.mode === "single" || d.pages.length < 2; if (!sw.hidden && $("charSwitchHint")) $("charSwitchHint").textContent = `${index + 1} / ${d.pages.length}`; }
+    updateCharacterTabUi(n);
+  }
+  function renderCharacter() {
+    const n = getNote(st.curNoteId); if (!n || !isCharacterCardType(n)) { back(); return; }
+    const data = ensureCharacterData(n), single = data.mode === "single", variant = lucyCharacterVariant(n), style = lucyCharacterStyle(n);
+    charLang = "ko";
+    document.body.classList.toggle("char-single-mode", single);
+    $("screen-character").classList.toggle("lucy-text-card", variant === "lucy" && style === "text");
+    $("screen-character").classList.toggle("lucy-image-card", variant === "lucy" && style === "image");
+    $("screen-character").classList.toggle("lumi-character-card", variant === "lumi");
+    syncCharacterTitle(n);
+    const kind = n.type === "persona" ? (single ? "페르소나" : "페르소나 모음") : (variant === "lucy" ? (single ? "캐릭터" : "다인 캐릭터") : (single ? "루미 캐릭터" : "루미 다인 캐릭터"));
+    $("charTitle").textContent = n.title || kind; $("charEditView").hidden = !st.charEdit; $("charReadView").hidden = !!st.charEdit; $("charSave").hidden = !st.charEdit;
+    $("charViewIcon").innerHTML = st.charEdit ? '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>' : '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>';
+    $("charViewToggle").title = st.charEdit ? "보기 모드로" : "편집 모드로";
+    renderCharNav(n, false); renderCharNav(n, true); if (st.charEdit) renderCharacterEdit(n); else renderCharacterRead(n);
+    setCharSaver(""); lucyUpdateCharacterCounters(n); queueDraftRecovery(n, "character");
+  }
+  async function flushCharacter() {
+    clearTimeout(charTimer); charTimer = null;
+    const n = getNote(st.curNoteId); if (!n || !isCharacterCardType(n) || !st.charEdit) return;
+    const page = activeCharacterPage(n);
+    if ($("charKoName")) page.ko.name = $("charKoName").value;
+    if ($("charKoDetail")) page.ko.detail = $("charKoDetail").value;
+    if ($("charStoryDetail")) page.story.detail = $("charStoryDetail").value;
+    if (lucyCharacterVariant(n) === "lucy") {
+      page.ko.sections = lucyNormalizeSections(page.ko.sections, page.ko.detail, "상세 설명");
+      page.story.sections = lucyNormalizeSections(page.story.sections, page.story.detail, "서사");
+      page.ko.detail = lucySectionsPlain(page.ko.sections);
+      page.story.detail = lucySectionsPlain(page.story.sections);
+    }
+    page.relations = normalizeCharacterRelations(page.relations);
+    page.visibleTabs = normalizeCharacterTabVisibility(page.visibleTabs);
+    page.creatorMemo = getCreatorMemoHtml();
+    syncCharacterTitle(n); await saveCharacter(n); clearDraftIfSynced(n, "character", characterTextSnapshot(n, false)); lucyUpdateCharacterCounters(n);
+  }
+  async function setCharacterDisplayStyle(n, style) {
+    if (!n || n.type !== "character") return;
+    const d = ensureCharacterData(n);
+    if (d.cardVariant !== "lucy") { toast("루미 캐릭터는 기존 이미지형 카드 레이아웃을 유지합니다"); return; }
+    d.displayStyle = style === "text" ? "text" : "image";
+    await saveCharacter(n, true); renderCharacter(); toast(d.displayStyle === "text" ? "텍스트형 캐릭터 카드로 바꿨어요" : "이미지형 캐릭터 카드로 바꿨어요");
+  }
+  function openCharacterDisplayStylePicker(n) {
+    const current = lucyCharacterStyle(n);
+    openModal(`<h3>캐릭터 표시 형식</h3><p class="m-sub">설명 항목, 서사, 관계, 코멘트는 두 형식 모두 유지됩니다.</p><div class="char-style-pick"><button type="button" class="char-style-choice${current === "image" ? " selected" : ""}" data-char-style="image"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><circle cx="9" cy="9" r="1.8"/><path d="M20 16l-5-5L6 20"/></svg><b>이미지형</b><small>포트레이트와 정사각 썸네일을 중심으로 보여요</small></button><button type="button" class="char-style-choice${current === "text" ? " selected" : ""}" data-char-style="text"><svg viewBox="0 0 24 24"><path d="M5 5h14M5 10h14M5 15h10M5 20h8"/></svg><b>텍스트형</b><small>이미지를 접고 항목형 설명과 서사를 먼저 보여요</small></button></div><div class="m-row"><button class="m-btn" id="charStyleCancel">취소</button></div>`);
+    $("modalBox").querySelectorAll("[data-char-style]").forEach((button) => button.addEventListener("click", () => { closeModal(); void setCharacterDisplayStyle(n, button.dataset.charStyle); }));
+    $on("charStyleCancel", "click", closeModal);
+  }
+  function openCharacterTabVisibilityPicker(n) {
+    const page = activeCharacterPage(n), tabs = charVisibleTabs(page);
+    openModal(`<h3>탭 표시 설정</h3><p class="m-sub">꺼둔 탭의 내용은 삭제되지 않고 그대로 보관됩니다.</p><div class="char-tab-toggle-list">${CHAR_TAB_KEYS.map((key) => `<label class="char-tab-toggle"><input type="checkbox" data-char-tab-toggle="${key}"${tabs[key] ? " checked" : ""}><span><b>${esc(CHAR_TAB_INFO[key][0])}</b><small>${esc(CHAR_TAB_INFO[key][1])}</small></span></label>`).join("")}</div><div class="m-row"><button class="m-btn" id="charTabsCancel">취소</button><button class="m-btn primary" id="charTabsSave">저장</button></div>`);
+    $on("charTabsCancel", "click", closeModal);
+    $on("charTabsSave", "click", async () => {
+      const next = {};
+      $("modalBox").querySelectorAll("[data-char-tab-toggle]").forEach((input) => { next[input.dataset.charTabToggle] = input.checked; });
+      page.visibleTabs = normalizeCharacterTabVisibility(next);
+      if (!page.visibleTabs[lucyCharTab]) lucyCharTab = firstVisibleCharTab(page);
+      await saveCharacter(n, true); closeModal(); renderCharacter(); toast("탭 표시를 저장했어요");
+    });
+  }
+  function openCharacterSheet(n) {
+    const d = ensureCharacterData(n), single = d.mode === "single", variant = lucyCharacterVariant(n), baseKind = n.type === "persona" ? "페르소나" : (variant === "lucy" ? "캐릭터" : "루미 캐릭터"), kind = single ? baseKind : `다인 ${baseKind}`;
+    const items = [{ icon:IC.pin, label:n.pinned ? "고정 해제" : "상단 고정", fn:() => togglePinNote(n.id) }, { icon:IC.rename, label:"메모 이름 바꾸기", fn:() => renameModal(`${kind} 이름`, n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveCharacter(n, true); render(); } }) }];
+    if (n.type === "character" && variant === "lucy") items.push({ icon:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h7"/></svg>', label:`표시 형식 · ${lucyCharacterStyle(n) === "text" ? "텍스트형" : "이미지형"}`, fn:() => openCharacterDisplayStylePicker(n) }, { icon:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/><path d="M18 11l2 2 2-2"/></svg>', label:"탭 표시 설정", fn:() => openCharacterTabVisibilityPicker(n) });
+    if (!(n.type === "character" && variant === "lucy" && lucyCharacterStyle(n) === "text")) items.push({ icon:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.7"/><path d="M21 16l-5-5L5 21"/></svg>', label:"대표 썸네일 지정", fn:() => chooseCharacterCover(n) });
+    items.push({ icon:IC.color, label:"색상 지정", fn:() => showChipPicker(n.id) }, { icon:IC.save, label:`${kind} HTML로 저장`, fn:async () => { if (st.charEdit) await flushCharacter(); chooseCharacterExportOptions(n.id); } });
+    if (single) items.push({ icon:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M18 16v5M15.5 18.5h5"/></svg>', label:`${baseKind} 모음으로 확장`, fn:() => setCharacterMode(n, "collection") });
+    else if (d.pages.length === 1) items.push({ icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>', label:`단일 ${baseKind}로 정리`, fn:() => setCharacterMode(n, "single") });
+    if (!single && d.pages.length > 1) items.push({ icon:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="10" height="14" rx="2"/><path d="M9 8h2M9 12h2"/><path d="M15 10h4v10H9v-2"/></svg>', label:`현재 페이지를 단일 ${baseKind}로 분리 복사`, fn:() => copyActiveCharacterPageAsSingle(n) }, { icon:'<svg viewBox="0 0 24 24"><path d="M8 5h8M8 19h8M12 5v14"/><path d="M5 12h14"/></svg>', label:"현재 캐릭터 페이지 삭제", danger:true, fn:() => removeActiveCharacterPage() });
+    items.push({ icon:IC.move, label:"다른 프로젝트로 이동", fn:() => pickTargetProject(n.projectId, (pid) => moveNote(n.id, pid).then(render)) }, { icon:IC.copy, label:"선택 위치로 복제", fn:() => pickTargetProject(n.projectId, (pid) => duplicateNote(n.id, pid).then(render)) }, { icon:IC.del, label:`${kind} 삭제`, danger:true, fn:() => confirmModal(`${kind} 삭제`, `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) });
+    openSheet(n.title, items);
+  }
   function typePickerOptions(button){const type=button.dataset.createType||button.dataset.t,mode=button.dataset.characterMode==="single"?"single":"collection",variant=button.dataset.cardVariant==="lumi"?"lumi":(button.dataset.cardVariant==="lucy"?"lucy":null);return {type,options:(type==="character"||type==="persona")?{characterMode:mode,characterVariant:variant}:null};}
   async function createNote(type,projectId,options){const characterModeOption=options&&options.characterMode==="single"?"single":"collection",characterVariant=options&&options.characterVariant==="lumi"?"lumi":(type==="character"?"lucy":null),characterTitle=characterModeOption==="single"?(characterVariant==="lumi"?"이름 없는 루미 캐릭터":"이름 없는 캐릭터"):(characterVariant==="lumi"?"이름 없는 루미 다인 캐릭터":"이름 없는 다인 캐릭터"),personaTitle=characterModeOption==="single"?"이름 없는 페르소나":"이름 없는 페르소나 모음";const n={id:uid(),projectId,type,title:type==="lorebook"?"이름 없는 로어북":type==="log"?"이름 없는 로그":type==="idea"?"새 아이디어 보드":type==="persona"?personaTitle:type==="character"?characterTitle:type==="html"?"제목 없는 코드 작업실":type==="regex"?"새 정규식 작업실":type==="pdf"?"새 문서 작업실":"제목 없는 메모",titleLocked:type==="lorebook",chipColor:null,createdAt:now(),updatedAt:now(),data:type==="free"?{html:""}:type==="html"?{source:"",previewPolicy:"sandbox-web",exportFormat:"html"}:type==="regex"?makeRegexData():type==="pdf"?makePdfData():type==="lorebook"?makeLoreData():type==="log"?{content:"",templateId:"system-ink-frame",personaName:"",personaAlias:"",templateSnapshot:null}:(type==="persona"||type==="character")?{mode:characterModeOption,activeId:null,pages:[makeCharacterPage()],cardTypeVersion:3,cardVariant:characterVariant||"lumi",displayStyle:"image"}:type==="idea"?makeIdeaBoardData():{}};st.notes.push(n);await put("notes",n);const p=getProject(projectId);if(p)await saveProject(p);st.curNoteId=n.id;return n;}
   function showTypePicker(presetPid){const icon=(paths)=>`<svg viewBox="0 0 24 24">${paths}</svg>`,card=(type,mode,title,desc,ico,variant)=>`<button type="button" class="type-card" data-create-type="${type}"${mode?` data-character-mode="${mode}"`:""}${variant?` data-card-variant="${variant}"`:""}><div class="tc-ico">${ico}</div><div><div class="tc-name">${title}</div><div class="tc-desc">${desc}</div></div></button>`,icons={persona:icon('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),people:icon('<circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="10" r="2.4"/><path d="M3.5 21a6.2 6.2 0 0 1 11 0"/><path d="M13 20.5a4.5 4.5 0 0 1 7.5 0"/>'),lore:icon('<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7"/>'),html:icon('<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/><path d="M13 4l-2 16"/>'),regex:icon('<path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/>'),pdf:icon('<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/>'),free:icon('<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>'),log:icon('<path d="M4 4h16v16H4z"/><path d="M7 8h10M7 12h7M7 16h9"/><path d="M4 7h16"/>'),idea:icon('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 16.5l2.4-5.8 2.3 4.2 1.5-2.2 2.8 3.8"/><circle cx="15.8" cy="8.2" r="1.5"/><path d="M7 7.5h4"/>')};openModal(`<div class="type-picker-modal"><h3>새 메모</h3><p class="m-sub">생성할 메모 타입을 골라주세요</p><button type="button" class="type-quick-free" data-create-type="free" aria-label="자유 메모 만들기"><span class="tqf-icon">${icons.free}</span><span class="tqf-copy"><span class="tqf-eyebrow">QUICK NOTE</span><span class="tqf-title">자유 메모</span><span class="tqf-sub">서식 보존 편집기로 바로 시작하기</span></span><span class="tqf-arrow">${icon('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></button><div class="type-picker-tabs" role="tablist"><button type="button" class="type-picker-tab active" data-type-tab="character" role="tab">캐릭터</button><button type="button" class="type-picker-tab" data-type-tab="studio" role="tab">작업실</button><button type="button" class="type-picker-tab" data-type-tab="atelier" role="tab">아뜰리에</button></div><div class="type-picker-pane active" data-type-pane="character" role="tabpanel"><div class="type-pane-caption">Character cards</div>${card("character","single","캐릭터","신규 카드 · 이미지형/텍스트형 전환",icons.persona,"lucy")}${card("character","collection","다인 캐릭터","여러 인물을 한 카드 묶음으로 관리",icons.people,"lucy")}<div class="type-pane-caption" style="margin-top:16px">Lumi legacy cards</div>${card("character","single","루미 캐릭터","기존 이미지 카드 레이아웃 호환",icons.persona,"lumi")}${card("character","collection","루미 다인 캐릭터","기존 다인 캐릭터 레이아웃 호환",icons.people,"lumi")}${card("persona","single","페르소나","단일 페르소나 카드",icons.persona)}${card("persona","collection","다인 페르소나","여러 페르소나 카드",icons.people)}</div><div class="type-picker-pane" data-type-pane="studio" role="tabpanel" hidden><div class="type-pane-caption">Writing tools</div>${card("lorebook","","로어북","마크다운 · 키워드 · World Info 내보내기",icons.lore)}${card("html","","코드 작업실","원본 코드 보존 · 샌드박스 미리보기",icons.html)}${card("regex","","정규식 작업실","IN 검증 · OUT HTML 미리보기",icons.regex)}${card("pdf","","PDF 작업실","PDF 열기 · 메모 편집 · 내보내기",icons.pdf)}</div><div class="type-picker-pane" data-type-pane="atelier" role="tabpanel" hidden><div class="type-pane-caption">Creative atelier</div>${card("free","","자유 메모","서식 보존 · 이미지 · 코드 보기 지원",icons.free)}${card("log","","로그 저장","대화 로그 · 게시용 HTML 내보내기",icons.log)}${card("idea","","아이디어 보드","캔버스에 요소를 배치해 꾸미기",icons.idea)}</div><div class="m-row"><button class="m-btn" data-x="cancel">취소</button></div></div>`);const box=$("modalBox"),selectTab=(name)=>{box.querySelectorAll(".type-picker-tab").forEach((tab)=>{const on=tab.dataset.typeTab===name;tab.classList.toggle("active",on);tab.setAttribute("aria-selected",on?"true":"false");});box.querySelectorAll(".type-picker-pane").forEach((pane)=>{const on=pane.dataset.typePane===name;pane.classList.toggle("active",on);pane.hidden=!on;});};box.querySelectorAll(".type-picker-tab").forEach((tab)=>tab.addEventListener("click",()=>selectTab(tab.dataset.typeTab)));box.querySelectorAll("[data-create-type]").forEach((button)=>button.addEventListener("click",()=>{const {type,options}=typePickerOptions(button),openCreated=()=>openCreatedNote(type);if(presetPid)createNote(type,presetPid,options).then(openCreated);else showProjectPicker(type,options);}));box.querySelector('[data-x="cancel"]').addEventListener("click",closeModal);}
