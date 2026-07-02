@@ -120,7 +120,7 @@
   const QUICK_MENU_DEFAULT = 5;
   const QUICK_MENU_LEGACY_DEFAULT = 7;
   const QUICK_MENU_MAX = 10;
-  const QUICK_MENU_ALLOWED_TYPES = new Set(["free", "html", "regex", "lorebook", "log", "persona", "character", "idea"]);
+  const QUICK_MENU_ALLOWED_TYPES = new Set(["free", "html", "regex", "pdf", "lorebook", "log", "persona", "character", "idea"]);
   const QUICK_MENU_ICON_LIBRARY = Array.isArray(window.__luminkQuickMenuIcons) ? window.__luminkQuickMenuIcons.filter((item) => item && typeof item.id === "string" && typeof item.svg === "string") : [];
   const QUICK_MENU_ICON_BY_ID = new Map(QUICK_MENU_ICON_LIBRARY.map((item) => [item.id, item]));
   const QUICK_MENU_ICON_CATEGORIES = [
@@ -273,7 +273,7 @@
     const type = slot && slot.createType;
     if (type === "persona") return slot.createMode === "collection" ? "다인 페르소나" : "페르소나";
     if (type === "character") return slot.createMode === "collection" ? "다인 캐릭터" : "캐릭터";
-    return ({ free: "자유 메모", html: "코드 작업실", lorebook: "로어북", log: "로그 저장", idea: "아이디어 보드" })[type] || "메모";
+    return ({ free: "자유 메모", html: "코드 작업실", regex: "정규식 작업실", pdf: "PDF 작업실", lorebook: "로어북", log: "로그 저장", idea: "아이디어 보드" })[type] || "메모";
   }
   function quickMenuSlotLabel(slot) {
     if (!slot || !slot.kind) return "새 슬롯 등록";
@@ -662,7 +662,7 @@
   }
   function openQuickMenuCreateTypePicker(index) {
     const options = [
-      ["free", "single", "자유 메모", "바로 빈 문서 열기"], ["html", "single", "코드 작업실", "HTML · JSON · MD 원본 편집 시작"], ["regex", "single", "정규식 작업실", "SillyTavern Regex 만들기"], ["lorebook", "single", "로어북", "World Info용 항목 만들기"], ["log", "single", "로그 저장", "대화 로그용 메모 만들기"],
+      ["free", "single", "자유 메모", "바로 빈 문서 열기"], ["html", "single", "코드 작업실", "HTML · JSON · MD 원본 편집 시작"], ["regex", "single", "정규식 작업실", "SillyTavern Regex 만들기"], ["pdf", "single", "PDF 작업실", "PDF 열기와 내보내기"], ["lorebook", "single", "로어북", "World Info용 항목 만들기"], ["log", "single", "로그 저장", "대화 로그용 메모 만들기"],
       ["persona", "single", "페르소나", "단일 페르소나 카드"], ["persona", "collection", "다인 페르소나", "페르소나 모음 카드"], ["character", "single", "캐릭터", "단일 캐릭터 카드"], ["character", "collection", "다인 캐릭터", "캐릭터 모음 카드"], ["idea", "single", "아이디어 보드", "자유 배치 보드 만들기"]
     ];
     openModal(`<h3>만들 메모 타입</h3><p class="m-sub">실행하면 이 타입의 새 메모를 바로 만듭니다.</p><div class="qm-picker-list">${options.map(([type, mode, label, desc]) => `<button type="button" class="qm-picker-row" data-qm-create-type="${type}" data-qm-create-mode="${mode}"><b>${esc(label)}</b><small>${esc(desc)}</small></button>`).join("")}</div><div class="m-row"><button class="m-btn" id="qmCreateTypeBack">뒤로</button></div>`);
@@ -1642,8 +1642,8 @@
   }
 
   /* ---------- routing ---------- */
-  const SCREENS = ["home", "project", "read", "editor", "html", "regex", "lore", "log", "persona", "character", "idea", "settings", "search"];
-  const NOTE_SCREENS = new Set(["read", "editor", "html", "regex", "lore", "log", "persona", "character", "idea"]);
+  const SCREENS = ["home", "project", "read", "editor", "html", "regex", "pdf", "lore", "log", "persona", "character", "idea", "settings", "search"];
+  const NOTE_SCREENS = new Set(["read", "editor", "html", "regex", "pdf", "lore", "log", "persona", "character", "idea"]);
   function showScreen(s) { SCREENS.forEach((x) => $("screen-" + x).classList.toggle("active", x === s)); }
   function curView() { return st.viewStack[st.viewStack.length - 1]; }
   function normalizeRouteView(view) {
@@ -1665,6 +1665,7 @@
     else if (v.s === "editor") renderEditorMeta();
     else if (v.s === "html") renderHtmlWorkshop();
     else if (v.s === "regex") renderRegexWorkshop();
+    else if (v.s === "pdf") renderPdfWorkshop();
     else if (v.s === "lore") renderLore();
     else if (v.s === "log") renderLog();
     else if (v.s === "persona") renderPersona();
@@ -1698,6 +1699,12 @@
       void (async () => { try { await leaveRegexWorkshop(); commitGo(view); } finally { navTransition = false; } })();
       return;
     }
+    if (cur && cur.s === "pdf" && view && view.s !== "pdf") {
+      if (navTransition) return;
+      navTransition = true;
+      void (async () => { try { await flushPdfWorkshop(true); commitGo(view); } finally { navTransition = false; } })();
+      return;
+    }
     if (cur && cur.s === "idea" && view && view.s !== "idea") {
       if (navTransition) return;
       navTransition = true;
@@ -1716,6 +1723,7 @@
     if (cur === "editor") await leaveFreeEditor();
     else if (cur === "html") await leaveHtmlWorkshop();
     else if (cur === "regex") await leaveRegexWorkshop();
+    else if (cur === "pdf") await flushPdfWorkshop(true);
     else if (cur === "lore") await flushLore();
     else if (cur === "log") await flushLog();
     else if (cur === "persona") await flushPersona();
@@ -1873,8 +1881,8 @@
   const PIN_SVG = '<svg viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v5"/></svg>';
   const PIN_STAR = '<svg class="pin-star" viewBox="0 0 24 24"><path d="M12 2l2.7 6.6 7 .5-5.4 4.5 1.8 6.9L12 17.3 5.9 21l1.8-6.9L2.3 9.1l7-.5z"/></svg>';
   const SORT_LABELS = { recent: "최신순", recent_asc: "오래된순", name: "이름 ㄱ→ㅎ", name_desc: "이름 ㅎ→ㄱ" };
-  const TYPE_COLOR = { free: "#7b9bff", html: "#5eead4", regex: "#4ad1a7", lorebook: "#6ad0ff", log: "#f0a44d", persona: "#c79bff", character: "#ff9fcb", idea: "#f0c967" };
-  const TYPE_TAG = { free: "F", html: "H", regex: "X", lorebook: "R", log: "L", persona: "P", character: "C", idea: "I" };
+  const TYPE_COLOR = { free: "#7b9bff", html: "#5eead4", regex: "#4ad1a7", pdf: "#ef6f7a", lorebook: "#6ad0ff", log: "#f0a44d", persona: "#c79bff", character: "#ff9fcb", idea: "#f0c967" };
+  const TYPE_TAG = { free: "F", html: "H", regex: "X", pdf: "D", lorebook: "R", log: "L", persona: "P", character: "C", idea: "I" };
   // Persona and character notes share the card editor, but stay separate memo types.
   function isCharacterCardType(n) { return !!n && (n.type === "character" || n.type === "persona"); }
   function characterMode(n) {
@@ -1887,7 +1895,7 @@
   function noteTypeLabel(n) { return TYPE_LABEL[visualMemoType(n)] || (n && n.type) || ""; }
   function noteTypeShortLabel(n) {
     const type = visualMemoType(n);
-    return ({ free:"자유메모", html:"HTML", regex:"정규식", lorebook:"로어북", log:"로그", persona:"페르소나", character:"캐릭터", idea:"아이디어 보드" })[type] || noteTypeLabel(n);
+    return ({ free:"자유메모", html:"HTML", regex:"정규식", pdf:"PDF", lorebook:"로어북", log:"로그", persona:"페르소나", character:"캐릭터", idea:"아이디어 보드" })[type] || noteTypeLabel(n);
   }
   function noteSectionKey(n) { return n && n.type ? n.type : ""; }
   function memoTagHTML(n) { const type = visualMemoType(n); return `<span class="memo-tag t-${type}">${TYPE_TAG[type] || "?"}</span>`; }
@@ -2103,7 +2111,7 @@
     } else {
       const dotStyle = col ? `background:${col};box-shadow:0 0 8px ${col}` : "";
       lead = `<span class="mc-dot" style="${dotStyle}"></span>`;
-      meta = n.type === "idea" ? ideaBoardSummary(n) : n.type === "lorebook" ? `키워드 ${((n.data && n.data.keywords) || []).length}개${n.data && n.data.alwaysActive ? " · 항상 활성" : ""}` : n.type === "log" ? (String((n.data && n.data.content) || "").replace(/\s+/g, " ").trim().slice(0, 60) || "빈 로그") : n.type === "html" ? (htmlSourceSummary(n) || "빈 코드 원본") : n.type === "regex" ? (regexSourceSummary(n) || "빈 정규식") : (preview(noteHtml(n)) || "빈 메모");
+      meta = n.type === "idea" ? ideaBoardSummary(n) : n.type === "lorebook" ? `키워드 ${((n.data && n.data.keywords) || []).length}개${n.data && n.data.alwaysActive ? " · 항상 활성" : ""}` : n.type === "log" ? (String((n.data && n.data.content) || "").replace(/\s+/g, " ").trim().slice(0, 60) || "빈 로그") : n.type === "html" ? (htmlSourceSummary(n) || "빈 코드 원본") : n.type === "regex" ? (regexSourceSummary(n) || "빈 정규식") : n.type === "pdf" ? (pdfSourceSummary(n) || "PDF 없음") : (preview(noteHtml(n)) || "빈 메모");
     }
     chip.innerHTML = '<span class="sel-check"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span>' + lead +
       `<div class="mc-body"><div class="mc-title">${esc(n.title)}${n.pinned ? PIN_STAR : ""}</div><div class="mc-meta">${fmtDate(n.updatedAt)} · ${esc(meta)}</div></div>` +
@@ -2202,6 +2210,7 @@
       if (curView().s === "editor") await leaveFreeEditor();
       else if (curView().s === "html") await leaveHtmlWorkshop();
       else if (curView().s === "regex") await leaveRegexWorkshop();
+      else if (curView().s === "pdf") await flushPdfWorkshop(true);
       else if (curView().s === "log") await flushLog();
       else if (curView().s === "idea") await flushIdeaBoard();
       st.curProjectId = id; commitGo({ s: "project" }); renderSidebar();
@@ -2211,6 +2220,7 @@
     if (curView().s === "editor") await leaveFreeEditor();
     else if (curView().s === "html") await leaveHtmlWorkshop();
     else if (curView().s === "regex") await leaveRegexWorkshop();
+    else if (curView().s === "pdf") await flushPdfWorkshop(true);
     else if (st.saveTimer || (freeEditorSession && freeEditorSession.active)) await flushSave(true);
     if (loreTimer) await flushLore();
     if (logTimer) await flushLog();
@@ -2228,6 +2238,7 @@
       if (n.type === "free") commitGo({ s: "read" });
       else if (n.type === "html") commitGo({ s: "html" });
       else if (n.type === "regex") commitGo({ s: "regex" });
+      else if (n.type === "pdf") commitGo({ s: "pdf" });
       else if (n.type === "lorebook") commitGo({ s: "lore" });
       else if (n.type === "log") { logEditMode = false; commitGo({ s: "log" }); }
       else if (isCharacterCardType(n)) { st.charEdit = false; commitGo({ s: "character" }); }
@@ -2240,7 +2251,7 @@
     if (navTransition) return;
     navTransition = true;
     try {
-      closeSidebar(); if (curView().s === "editor") await leaveFreeEditor(); else if (curView().s === "html") await leaveHtmlWorkshop(); else if (curView().s === "regex") await leaveRegexWorkshop(); else if (curView().s === "log") await flushLog(); else if (curView().s === "idea") await flushIdeaBoard();
+      closeSidebar(); if (curView().s === "editor") await leaveFreeEditor(); else if (curView().s === "html") await leaveHtmlWorkshop(); else if (curView().s === "regex") await leaveRegexWorkshop(); else if (curView().s === "pdf") await flushPdfWorkshop(true); else if (curView().s === "log") await flushLog(); else if (curView().s === "idea") await flushIdeaBoard();
       st.viewStack = [{ s: "home" }]; history.replaceState({ d: 1 }, ""); render();
     } finally { navTransition = false; }
   }
@@ -2405,12 +2416,13 @@
     const personaTitle = characterModeOption === "single" ? "이름 없는 페르소나" : "이름 없는 페르소나 모음";
     const n = {
       id: uid(), projectId, type,
-      title: type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : type === "idea" ? "새 아이디어 보드" : type === "persona" ? personaTitle : type === "character" ? characterTitle : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : "제목 없는 메모",
+      title: type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : type === "idea" ? "새 아이디어 보드" : type === "persona" ? personaTitle : type === "character" ? characterTitle : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "pdf" ? "새 PDF 작업실" : "제목 없는 메모",
       titleLocked: type === "lorebook",
       chipColor: null, createdAt: now(), updatedAt: now(),
       data: type === "free" ? { html: "" }
           : type === "html" ? { source: "", previewPolicy: "sandbox-web", exportFormat: "html" }
           : type === "regex" ? makeRegexData()
+          : type === "pdf" ? makePdfData()
           : type === "lorebook" ? makeLoreData()
           : type === "log" ? { content: "", templateId: "system-ink-frame", personaName: "", personaAlias: "", templateSnapshot: null }
           : (type === "persona" || type === "character") ? { mode: characterModeOption, activeId: null, pages: [makeCharacterPage()], cardTypeVersion: 2 }
@@ -2822,6 +2834,307 @@
       { icon: IC.copy, label: "선택 위치로 복제", fn: () => pickTargetProject(n.projectId, (pid) => duplicateNote(n.id, pid).then(render)) },
       { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("코드 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
     ]);
+  }
+
+  /* ---------- PDF workshop: stored original + PDF.js page render/export ---------- */
+  const PDF_MAX_BYTES = 60 * 1024 * 1024;
+  const PDFJS_LOCAL_SRC = "./pdf.min.js";
+  const PDFJS_LOCAL_WORKER = "./pdf.worker.min.js";
+  const PDFJS_CDN_SRC = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
+  const PDFJS_CDN_WORKER = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  let pdfWorkshopSession = null, pdfSaveTimer = null, pdfObjectUrl = "", pdfObjectUrlId = "";
+  let pdfJsPromise = null, pdfRenderToken = 0, pdfRenderTask = null, pdfLoadedDoc = null, pdfLoadedFileId = "";
+
+  function makePdfData() {
+    return { attachments: [], currentPage: 1, pageCount: 0, zoom: 1.2, rotation: 0, memo: "" };
+  }
+  function normalizePdfData(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const attachments = normalizeImportedAttachments(src.attachments).filter((item) => /pdf/i.test(`${item.type || ""} ${item.name || ""}`)).slice(0, 1);
+    const pageCount = Math.max(0, Math.min(99999, Math.round(Number(src.pageCount) || 0)));
+    const currentPage = Math.max(1, Math.min(pageCount || 99999, Math.round(Number(src.currentPage) || 1)));
+    const zoom = Math.max(0.6, Math.min(2.2, Number(src.zoom) || 1.2));
+    const rotation = ((Math.round(Number(src.rotation) || 0) % 360) + 360) % 360;
+    return { attachments, currentPage, pageCount, zoom, rotation: rotation - (rotation % 90), memo: cleanImportedText(src.memo, 20000) };
+  }
+  function pdfAttachmentFromData(data) {
+    const d = normalizePdfData(data);
+    return d.attachments[0] || null;
+  }
+  function pdfAttachment(n) { return n && n.data ? pdfAttachmentFromData(n.data) : null; }
+  function isPdfFile(file) {
+    const name = String((file && file.name) || "");
+    const type = String((file && file.type) || "").toLowerCase().split(";")[0].trim();
+    return /\.pdf$/i.test(name) || type === "application/pdf" || type === "application/x-pdf";
+  }
+  function pdfFileBaseName(name) {
+    const base = String(name || "pdf-workshop").replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]+/g, "_").trim();
+    return (base || "pdf-workshop").slice(0, 80);
+  }
+  function pdfSourceSummary(n) {
+    const d = normalizePdfData(n && n.data);
+    const a = d.attachments[0];
+    if (a) return `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}`;
+    return String(d.memo || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  }
+  function setPdfSaver(mode) {
+    const s = $("pdfSaver"); if (!s) return;
+    s.className = "saver " + (mode || "");
+    $("pdfSaverText").textContent = mode === "dirty" ? "기록 중" : mode === "saved" ? "저장됨" : "";
+    if (mode === "saved") setTimeout(() => { if (s.classList.contains("saved")) { s.className = "saver"; $("pdfSaverText").textContent = ""; } }, 1500);
+  }
+  function pdfEditorData(n) {
+    const base = normalizePdfData(n && n.data);
+    const nameInput = $("pdfFileName");
+    const memoInput = $("pdfMemo");
+    if (base.attachments[0] && nameInput) base.attachments[0].name = cleanImportedText(nameInput.value, 240).trim() || base.attachments[0].name || "document.pdf";
+    if (memoInput) base.memo = cleanImportedText(memoInput.value, 20000);
+    return base;
+  }
+  function schedulePdfSave(delay) {
+    const session = pdfWorkshopSession;
+    if (!session || !session.active || curView().s !== "pdf") return;
+    session.dirty = true; setPdfSaver("dirty");
+    clearTimeout(pdfSaveTimer);
+    pdfSaveTimer = setTimeout(() => void flushPdfWorkshop(false), delay == null ? 550 : delay);
+  }
+  async function flushPdfWorkshop(silent) {
+    clearTimeout(pdfSaveTimer); pdfSaveTimer = null;
+    const session = pdfWorkshopSession;
+    if (!session || !session.active || !session.noteId) return;
+    const n = getNote(session.noteId); if (!n || n.type !== "pdf") return;
+    const next = pdfEditorData(n);
+    if (!jsonSame(normalizePdfData(n.data || {}), next)) {
+      n.data = next;
+      await saveNote(n);
+    }
+    session.dirty = false;
+    if (!silent) setPdfSaver("saved");
+    renderSidebar();
+  }
+  function revokePdfObjectUrl() {
+    if (!pdfObjectUrl) return;
+    try { URL.revokeObjectURL(pdfObjectUrl); } catch (e) {}
+    pdfObjectUrl = ""; pdfObjectUrlId = "";
+  }
+  function pdfBlobUrl(fileId, blob) {
+    if (pdfObjectUrl && pdfObjectUrlId === fileId) return pdfObjectUrl;
+    revokePdfObjectUrl();
+    pdfObjectUrl = URL.createObjectURL(blob);
+    pdfObjectUrlId = fileId;
+    return pdfObjectUrl;
+  }
+  function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+      if ([...document.scripts].some((script) => script.src && script.src.endsWith(src.replace(/^\.\//, "")))) { resolve(); return; }
+      const script = document.createElement("script");
+      script.src = src; script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => { script.remove(); reject(new Error("script load failed")); };
+      document.head.appendChild(script);
+    });
+  }
+  async function ensurePdfJs() {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    if (!pdfJsPromise) {
+      pdfJsPromise = (async () => {
+        let worker = PDFJS_LOCAL_WORKER;
+        try { await loadScriptOnce(PDFJS_LOCAL_SRC); }
+        catch (localError) { worker = PDFJS_CDN_WORKER; await loadScriptOnce(PDFJS_CDN_SRC); }
+        if (!window.pdfjsLib) throw new Error("pdfjs unavailable");
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = worker;
+        return window.pdfjsLib;
+      })();
+    }
+    return pdfJsPromise;
+  }
+  async function pdfRecord(n) {
+    const a = pdfAttachment(n);
+    if (!a) return null;
+    const rec = await getOne("files", a.id);
+    return rec && rec.blob ? rec : null;
+  }
+  function syncPdfControls(n) {
+    const d = normalizePdfData(n && n.data), a = d.attachments[0];
+    $("pdfTitle").textContent = n && n.title ? n.title : "PDF 작업실";
+    $("pdfMeta").textContent = a ? `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}` : "PDF 없음";
+    $("pdfFileName").value = a ? (a.name || "document.pdf") : "";
+    $("pdfMemo").value = d.memo || "";
+    $("pdfPage").value = String(d.currentPage || 1);
+    $("pdfPage").max = String(d.pageCount || 99999);
+    $("pdfPageTotal").textContent = `/ ${d.pageCount || 1}`;
+    $("pdfZoom").value = String(Math.round((d.zoom || 1.2) * 100));
+    $("pdfZoomLabel").textContent = `${Math.round((d.zoom || 1.2) * 100)}%`;
+    ["pdfPrev", "pdfNext", "pdfRotateLeft", "pdfRotateRight", "pdfReload", "pdfExport", "pdfExportImage", "pdfPanelExport", "pdfPanelImage"].forEach((id) => { const el = $(id); if (el) el.disabled = !a; });
+  }
+  function showPdfEmpty(show) {
+    $("pdfEmpty").hidden = !show;
+    $("pdfCanvasShell").hidden = true;
+    $("pdfFallbackFrame").hidden = true;
+    $("pdfLoading").hidden = true;
+  }
+  async function renderPdfPage(id) {
+    const token = ++pdfRenderToken;
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), a = d.attachments[0];
+    syncPdfControls(n);
+    if (!a) { showPdfEmpty(true); $("pdfStatus").textContent = "PDF 없음"; return; }
+    $("pdfEmpty").hidden = true; $("pdfLoading").hidden = false;
+    const rec = await pdfRecord(n);
+    if (token !== pdfRenderToken) return;
+    if (!rec) { showPdfEmpty(true); $("pdfStatus").textContent = "PDF 파일을 찾지 못했어요"; return; }
+    const blob = rec.blob, url = pdfBlobUrl(a.id, blob);
+    try {
+      const lib = await ensurePdfJs();
+      if (token !== pdfRenderToken) return;
+      if (!pdfLoadedDoc || pdfLoadedFileId !== a.id) {
+        if (pdfLoadedDoc && pdfLoadedDoc.destroy) { try { await pdfLoadedDoc.destroy(); } catch (e) {} }
+        const bytes = await blob.arrayBuffer();
+        pdfLoadedDoc = await lib.getDocument({ data: bytes }).promise;
+        pdfLoadedFileId = a.id;
+      }
+      const pageCount = pdfLoadedDoc.numPages || 1;
+      const pageNo = Math.max(1, Math.min(pageCount, d.currentPage || 1));
+      if (d.pageCount !== pageCount || d.currentPage !== pageNo) {
+        n.data = Object.assign({}, d, { pageCount, currentPage: pageNo });
+        await saveNote(n);
+      }
+      const page = await pdfLoadedDoc.getPage(pageNo);
+      if (token !== pdfRenderToken) return;
+      if (pdfRenderTask && pdfRenderTask.cancel) { try { pdfRenderTask.cancel(); } catch (e) {} }
+      const canvas = $("pdfCanvas"), ctx = canvas.getContext("2d", { alpha:false });
+      const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+      const viewport = page.getViewport({ scale: (d.zoom || 1.2) * outputScale, rotation: d.rotation || 0 });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      canvas.style.width = `${Math.floor(viewport.width / outputScale)}px`;
+      canvas.style.height = `${Math.floor(viewport.height / outputScale)}px`;
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      pdfRenderTask = page.render({ canvasContext: ctx, viewport });
+      await pdfRenderTask.promise;
+      if (token !== pdfRenderToken) return;
+      $("pdfLoading").hidden = true;
+      $("pdfCanvasShell").hidden = false;
+      $("pdfFallbackFrame").hidden = true;
+      $("pdfStatus").textContent = `PDF.js · ${pageNo}/${pageCount}페이지`;
+      syncPdfControls(getNote(id) || n);
+    } catch (error) {
+      console.warn("pdf render", error);
+      if (token !== pdfRenderToken) return;
+      $("pdfLoading").hidden = true;
+      $("pdfCanvasShell").hidden = true;
+      const frame = $("pdfFallbackFrame");
+      frame.src = `${url}#page=${d.currentPage || 1}`;
+      frame.hidden = false;
+      $("pdfStatus").textContent = "브라우저 PDF 미리보기 · PNG 변환은 PDF.js 로드 후 사용";
+    }
+  }
+  function beginPdfWorkshopSession(n) {
+    const same = pdfWorkshopSession && pdfWorkshopSession.active && pdfWorkshopSession.noteId === n.id;
+    if (!same) {
+      clearTimeout(pdfSaveTimer); pdfSaveTimer = null;
+      pdfWorkshopSession = { noteId:n.id, active:true, dirty:false };
+      if (pdfLoadedDoc && pdfLoadedDoc.destroy) { try { pdfLoadedDoc.destroy(); } catch (e) {} }
+      pdfLoadedDoc = null; pdfLoadedFileId = "";
+    }
+    n.data = normalizePdfData(n.data || {});
+    syncPdfControls(n); setPdfSaver("");
+    void renderPdfPage(n.id);
+  }
+  function renderPdfWorkshop() {
+    const n = getNote(st.curNoteId);
+    if (!n || n.type !== "pdf") { back(); return; }
+    beginPdfWorkshopSession(n);
+  }
+  async function replacePdfFile(file) {
+    const n = getNote(st.curNoteId);
+    if (!n || n.type !== "pdf" || !file) return;
+    if (!isPdfFile(file)) { toast("PDF 파일만 선택할 수 있어요"); return; }
+    if (file.size > PDF_MAX_BYTES) { toast("PDF는 60MB 이하만 저장할 수 있어요"); return; }
+    const old = pdfAttachment(n);
+    const id = uid(), type = file.type || "application/pdf", name = cleanImportedText(file.name, 240) || "document.pdf";
+    try {
+      await put("files", { id, noteId:n.id, name, type, size:file.size, blob:file, createdAt:now() });
+      n.data = Object.assign({}, normalizePdfData(n.data || {}), { attachments:[{ id, name, type, size:file.size }], currentPage:1, pageCount:0, rotation:0 });
+      if (!n.titleLocked) n.title = pdfFileBaseName(name) || "PDF 작업실";
+      await saveNote(n);
+      if (old && old.id !== id) await del("files", old.id).catch(() => {});
+      revokePdfObjectUrl(); pdfLoadedDoc = null; pdfLoadedFileId = "";
+      render(); renderSidebar(); toast("PDF를 열었어요");
+    } catch (e) {
+      await del("files", id).catch(() => {});
+      toast("PDF 저장에 실패했어요");
+    }
+  }
+  function setPdfPage(page) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {});
+    const max = d.pageCount || 99999;
+    const next = Math.max(1, Math.min(max, Math.round(Number(page) || 1)));
+    if (d.currentPage === next) return;
+    n.data = Object.assign({}, d, { currentPage: next });
+    syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id);
+  }
+  function rotatePdf(delta) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {});
+    n.data = Object.assign({}, d, { rotation: (d.rotation + delta + 360) % 360 });
+    syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id);
+  }
+  function setPdfZoom(value) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {});
+    n.data = Object.assign({}, d, { zoom: Math.max(0.6, Math.min(2.2, (Number(value) || 120) / 100)) });
+    syncPdfControls(n); schedulePdfSave(500); void renderPdfPage(n.id);
+  }
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  async function exportPdfOriginal(id) {
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    await flushPdfWorkshop(true);
+    const rec = await pdfRecord(n);
+    if (!rec) { toast("내보낼 PDF가 없어요"); return; }
+    const name = pdfAttachment(n)?.name || rec.name || `${pdfFileBaseName(n.title)}.pdf`;
+    downloadBlob(rec.blob, /\.pdf$/i.test(name) ? name : `${name}.pdf`);
+    toast("PDF를 내보냈어요");
+  }
+  async function exportPdfPagePng(id) {
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    await flushPdfWorkshop(true);
+    if ($("pdfCanvasShell").hidden) await renderPdfPage(id);
+    const canvas = $("pdfCanvas");
+    if (!canvas || !canvas.width || !canvas.height || $("pdfCanvasShell").hidden) { toast("PNG 변환 도구를 불러오지 못했어요"); return; }
+    canvas.toBlob((blob) => {
+      if (!blob) { toast("이미지 변환에 실패했어요"); return; }
+      const d = normalizePdfData(n.data || {});
+      downloadBlob(blob, `${pdfFileBaseName(n.title || pdfAttachment(n)?.name)}-p${String(d.currentPage || 1).padStart(3, "0")}.png`);
+      toast("현재 페이지를 PNG로 저장했어요");
+    }, "image/png");
+  }
+  function openPdfSheet(n) {
+    openSheet(n.title, [
+      { icon: IC.pin, label: n.pinned ? "고정 해제" : "상단 고정", fn: () => togglePinNote(n.id) },
+      { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("PDF 작업실 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
+      { icon: IC.color, label: "색상 지정", fn: () => showChipPicker(n.id) },
+      { icon: IC.save, label: "PDF 내보내기", fn: () => void exportPdfOriginal(n.id) },
+      { icon: IC.export, label: "현재 페이지 PNG 저장", fn: () => void exportPdfPagePng(n.id) },
+      { icon: IC.move, label: "다른 프로젝트로 이동", fn: () => pickTargetProject(n.projectId, (pid) => moveNote(n.id, pid).then(render)) },
+      { icon: IC.copy, label: "선택 위치로 복제", fn: () => pickTargetProject(n.projectId, (pid) => duplicateNote(n.id, pid).then(render)) },
+      { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("PDF 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
+    ]);
+  }
+  function openPdfFile(file) {
+    if (!file) return;
+    if (!isPdfFile(file)) { toast("PDF 파일만 열 수 있어요"); return; }
+    pickTargetProject(st.curProjectId, async (pid) => {
+      const n = await createNote("pdf", pid);
+      st.curNoteId = n.id; st.curProjectId = pid;
+      await replacePdfFile(file);
+      go({ s:"pdf" });
+    });
   }
 
   /* ---------- Regex workshop: SillyTavern findRegex / replaceString lab ---------- */
@@ -6838,6 +7151,7 @@
   function newNoteScreen(type) {
     if (type === "html") return "html";
     if (type === "regex") return "regex";
+    if (type === "pdf") return "pdf";
     if (type === "lorebook") return "lore";
     if (type === "log") return "log";
     if (type === "character" || type === "persona") return "character";
@@ -6867,6 +7181,7 @@
       lore: icon('<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7"/>'),
       html: icon('<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/><path d="M13 4l-2 16"/>'),
       regex: icon('<path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/>'),
+      pdf: icon('<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/>'),
       free: icon('<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>'),
       log: icon('<path d="M4 4h16v16H4z"/><path d="M7 8h10M7 12h7M7 16h9"/><path d="M4 7h16"/>'),
       idea: icon('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 16.5l2.4-5.8 2.3 4.2 1.5-2.2 2.8 3.8"/><circle cx="15.8" cy="8.2" r="1.5"/><path d="M7 7.5h4"/>')
@@ -6896,6 +7211,7 @@
           ${card("lorebook", "", "로어북", "마크다운 · 키워드 · 토큰 · World Info 내보내기", icons.lore)}
           ${card("html", "", "코드 작업실", "원본 코드 보존 · 샌드박스 미리보기 · 그대로 내보내기", icons.html)}
           ${card("regex", "", "정규식 작업실", "IN 검증 · OUT HTML 미리보기 · SillyTavern JSON 내보내기", icons.regex)}
+          ${card("pdf", "", "PDF 작업실", "PDF 열기 · 메모 편집 · PDF/PNG 내보내기", icons.pdf)}
         </div>
         <div class="type-picker-pane" data-type-pane="atelier" role="tabpanel" hidden>
           <div class="type-pane-caption">Creative atelier</div>
@@ -7078,10 +7394,10 @@
   /* ---------- attachments ---------- */
   /* ---------- top bar title quick rename ---------- */
   let topTitleRenameCooldown = 0;
-  const TOP_TITLE_IDS = ["edTitle", "readTitle", "htmlTitle", "regexTitle", "loreTitle", "logTitle", "perTitle", "charTitle", "ideaTitle"];
+  const TOP_TITLE_IDS = ["edTitle", "readTitle", "htmlTitle", "regexTitle", "pdfTitle", "loreTitle", "logTitle", "perTitle", "charTitle", "ideaTitle"];
   function titleKindLabel(n) {
     if (!n) return "메모";
-    return ({ free:"메모", html:"코드 작업실", regex:"정규식 작업실", lorebook:"로어북", log:"로그", persona:"페르소나", character:"캐릭터", idea:"아이디어 보드" })[n.type] || "메모";
+    return ({ free:"메모", html:"코드 작업실", regex:"정규식 작업실", pdf:"PDF 작업실", lorebook:"로어북", log:"로그", persona:"페르소나", character:"캐릭터", idea:"아이디어 보드" })[n.type] || "메모";
   }
   async function saveTopTitleRename(n, value) {
     const next = cleanImportedText(value, 80).trim(); if (!n || !next) return;
@@ -7165,6 +7481,7 @@
     if (n.type === "idea") { openIdeaBoardSheet(n); return; }
     if (n.type === "html") { openHtmlSheet(n); return; }
     if (n.type === "regex") { openRegexSheet(n); return; }
+    if (n.type === "pdf") { openPdfSheet(n); return; }
     openSheet(n.title, [
       { icon: IC.pin, label: n.pinned ? "고정 해제" : "상단 고정", fn: () => togglePinNote(id) },
       { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("메모 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
@@ -7365,6 +7682,7 @@
     if (isCharacterCardType(n)) { const d = ensureCharacterData(n); return d.pages.map((p) => [p.ko.name, (p.ko.tags || []).join(" "), p.ko.detail, p.en.name, (p.en.tags || []).join(" "), p.en.detail, p.creatorMemo].join(" ")).join(" ").toLowerCase(); }
     if (n.type === "html") return plainText(htmlSourceOf(n)).toLowerCase();
     if (n.type === "regex") { const d = normalizeRegexData(n.data || {}); return [d.scriptName, d.findRegex, d.replaceString, d.sampleText, d.trimStrings.join(" ")].join(" ").toLowerCase(); }
+    if (n.type === "pdf") { const d = normalizePdfData(n.data || {}), a = pdfAttachmentFromData(d); return [a ? a.name : "", d.memo || ""].filter(Boolean).join(" ").toLowerCase(); }
     return plainText(noteHtml(n)).toLowerCase();
   }
   function doSearch(q) {
@@ -7589,12 +7907,12 @@
   }
   function normalizeImportedNote(raw) {
     if (!raw || !isSafeRecordId(raw.id) || !isSafeRecordId(raw.projectId)) return null;
-    const sourceType = ["free", "html", "regex", "lorebook", "log", "persona", "character", "idea"].includes(raw.type) ? raw.type : null;
+    const sourceType = ["free", "html", "regex", "pdf", "lorebook", "log", "persona", "character", "idea"].includes(raw.type) ? raw.type : null;
     if (!sourceType) return null;
     const type = sourceType;
     const note = {
       id: raw.id, projectId: raw.projectId, type,
-      title: cleanImportedText(raw.title, 180) || (sourceType === "persona" ? "이름 없는 페르소나" : type === "character" ? "이름 없는 캐릭터 모음" : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : "제목 없는 메모"),
+      title: cleanImportedText(raw.title, 180) || (sourceType === "persona" ? "이름 없는 페르소나" : type === "character" ? "이름 없는 캐릭터 모음" : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "pdf" ? "새 PDF 작업실" : type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : "제목 없는 메모"),
       titleLocked: !!raw.titleLocked,
       chipColor: CHIP[raw.chipColor] ? raw.chipColor : null,
       createdAt: Number(raw.createdAt) || now(),
@@ -7617,6 +7935,8 @@
       note.data = { source: cleanImportedText(data.source, HTML_SOURCE_MAX), previewPolicy: "sandbox-web", exportFormat: data.exportFormat === "json" || data.exportFormat === "md" ? data.exportFormat : "html" };
     } else if (type === "regex") {
       note.data = normalizeRegexData(data);
+    } else if (type === "pdf") {
+      note.data = normalizePdfData(data);
     } else if (type === "lorebook") {
       note.data = normalizeLoreData(data);
     } else if (type === "log") {
@@ -8557,12 +8877,13 @@ ${gallery}
     });
   }
   function importHtmlFile(file) {
+    if (!file) { toast("열 파일을 찾지 못했어요"); return; }
+    if (isPdfFile(file)) { openPdfFile(file); return; }
     const declaredJson = isJsonFile(file);
     const declaredMarkdown = isMarkdownFile(file);
     const size = Number(file && file.size || 0);
     if (declaredJson && size > JSON_OPEN_MAX) { toast("JSON 파일은 5MB 이하만 열 수 있어요"); return; }
     if (declaredMarkdown && size > HTML_SOURCE_MAX) { toast("Markdown 원본은 5MB 이하만 열 수 있어요"); return; }
-    if (!file) { toast("열 파일을 찾지 못했어요"); return; }
     const fr = new FileReader();
     fr.onload = () => {
       const raw = String(fr.result || "");
@@ -8916,8 +9237,8 @@ ${gallery}
     "--accent-deep", "--accent-soft", "--accent-ink", "--grad-blue", "--glow", "--shadow", "--logo-ink", "--custom-glow-color",
     "--custom-main-a", "--custom-main-b", "--custom-logo-body", "--custom-logo-tip", "--custom-logo-ink", "--custom-logo-glow",
     "--quickmenu-default-icon-bg-a", "--quickmenu-default-icon-bg-b", "--quickmenu-panel-bg-b",
-    "--custom-note-type-free", "--custom-note-type-html", "--custom-note-type-lorebook", "--custom-note-type-log", "--custom-note-type-persona", "--custom-note-type-character", "--custom-note-type-idea",
-    "--custom-note-type-free-ink", "--custom-note-type-html-ink", "--custom-note-type-lorebook-ink", "--custom-note-type-log-ink", "--custom-note-type-persona-ink", "--custom-note-type-character-ink", "--custom-note-type-idea-ink",
+    "--custom-note-type-free", "--custom-note-type-html", "--custom-note-type-pdf", "--custom-note-type-lorebook", "--custom-note-type-log", "--custom-note-type-persona", "--custom-note-type-character", "--custom-note-type-idea",
+    "--custom-note-type-free-ink", "--custom-note-type-html-ink", "--custom-note-type-pdf-ink", "--custom-note-type-lorebook-ink", "--custom-note-type-log-ink", "--custom-note-type-persona-ink", "--custom-note-type-character-ink", "--custom-note-type-idea-ink",
     "--custom-note-divider-text", "--custom-note-divider-count"
   ]);
   const CUSTOM_THEME_FALLBACK_COLORS = Object.freeze(Object.fromEntries(CUSTOM_THEME_COLOR_META.map((item) => [item.key, item.fallback])));
@@ -9001,17 +9322,18 @@ ${gallery}
     }
     return out;
   }
-  const CUSTOM_NOTE_TYPE_KEYS = Object.freeze(["free","html","lorebook","log","persona","character","idea"]);
+  const CUSTOM_NOTE_TYPE_KEYS = Object.freeze(["free","html","pdf","lorebook","log","persona","character","idea"]);
   function customThemeAutoTypeVars(mainA,mainB,dark){
     const a=hexToHsl(mainA),b=hexToHsl(mainB),mid=blendHsl(mainA,mainB,.5);
     const delta=Math.abs(((b.h-a.h+540)%360)-180), spread=delta<46?16:7, saturation=Math.max(.46,Math.min(.84,mid.s*.92+.06));
     // v66.8: 기존 다크 추천 팔레트의 선명한 타입색(L .69)을 라이트 모드의 기준으로 승격합니다.
-    // 다크 표면에서는 같은 팔레트를 한 단계 밝힌 L .77로 사용해, 일곱 타입의 점·태그가 묻히지 않게 합니다.
+    // 다크 표면에서는 같은 팔레트를 한 단계 밝힌 L .77로 사용해, 타입별 점·태그가 묻히지 않게 합니다.
     // 태그 글자는 표면 모드와 무관하게 실제 배경 밝기에 맞춰 계산해 밝은 태그 위에서도 읽히게 유지합니다.
     const typeLightness=dark?.77:.69;
+    const center=(CUSTOM_NOTE_TYPE_KEYS.length-1)/2;
     const vars={"--custom-note-divider-text":dark?hslToHex(mid.h,Math.max(.12,mid.s*.16),.93):hslToHex(mid.h,Math.max(.22,mid.s*.42),.27),"--custom-note-divider-count":dark?hslToHex(mid.h,Math.max(.10,mid.s*.12),.61):hslToHex(mid.h,Math.max(.12,mid.s*.20),.54)};
     CUSTOM_NOTE_TYPE_KEYS.forEach((type,index)=>{
-      const point=index/(CUSTOM_NOTE_TYPE_KEYS.length-1), hue=lerpHue(a.h,b.h,point)+(index-3)*spread;
+      const point=index/(CUSTOM_NOTE_TYPE_KEYS.length-1), hue=lerpHue(a.h,b.h,point)+(index-center)*spread;
       const color=hslToHex(hue,Math.min(.86,saturation+(index%3)*.025),typeLightness);
       vars[`--custom-note-type-${type}`]=color;
       vars[`--custom-note-type-${type}-ink`]=contrastInk(color,false);
@@ -9401,9 +9723,9 @@ ${gallery}
         if (s === "regex" && e.shiftKey) {
           e.preventDefault(); void exportRegexJson(st.curNoteId); return;
         }
-        if (s === "editor" || s === "html" || s === "regex" || s === "lore" || s === "log" || s === "persona" || s === "character" || s === "idea") {
+        if (s === "editor" || s === "html" || s === "regex" || s === "pdf" || s === "lore" || s === "log" || s === "persona" || s === "character" || s === "idea") {
           e.preventDefault();
-          if (s === "editor") flushSave(true); else if (s === "html") flushHtmlSave(true); else if (s === "regex") flushRegexSave(true); else if (s === "lore") flushLore(); else if (s === "log") flushLog(); else if (s === "persona") flushPersona(); else if (s === "idea") flushIdeaBoard(); else flushCharacter();
+          if (s === "editor") flushSave(true); else if (s === "html") flushHtmlSave(true); else if (s === "regex") flushRegexSave(true); else if (s === "pdf") flushPdfWorkshop(true); else if (s === "lore") flushLore(); else if (s === "log") flushLog(); else if (s === "persona") flushPersona(); else if (s === "idea") flushIdeaBoard(); else flushCharacter();
           toast("저장했어요");
         }
       }
@@ -9477,6 +9799,37 @@ ${gallery}
     $on("htmlModeSource", "click", () => setHtmlView("source"));
     $on("htmlModePreview", "click", () => setHtmlView("preview"));
     $on("htmlModeSplit", "click", () => setHtmlView("split"));
+
+    // PDF workshop
+    $on("pdfInput", "change", (e) => {
+      const input = e.target;
+      const f = input && input.files && input.files[0];
+      if (input) input.value = "";
+      if (f) void replacePdfFile(f);
+    });
+    ["pdfPickFile", "pdfPickFirst", "pdfPanelReplace"].forEach((id) => $on(id, "click", () => $("pdfInput").click()));
+    ["pdfFileName", "pdfMemo"].forEach((id) => {
+      $on(id, "input", () => schedulePdfSave());
+      $on(id, "blur", () => void flushPdfWorkshop(false));
+    });
+    $on("pdfSave", "click", () => void flushPdfWorkshop(false));
+    $on("pdfMore", "click", () => openNoteSheet(st.curNoteId));
+    ["pdfExport", "pdfPanelExport"].forEach((id) => $on(id, "click", () => void exportPdfOriginal(st.curNoteId)));
+    ["pdfExportImage", "pdfPanelImage"].forEach((id) => $on(id, "click", () => void exportPdfPagePng(st.curNoteId)));
+    $on("pdfPrev", "click", () => {
+      const n = getNote(st.curNoteId), d = normalizePdfData(n && n.data);
+      setPdfPage((d.currentPage || 1) - 1);
+    });
+    $on("pdfNext", "click", () => {
+      const n = getNote(st.curNoteId), d = normalizePdfData(n && n.data);
+      setPdfPage((d.currentPage || 1) + 1);
+    });
+    $on("pdfPage", "change", (e) => setPdfPage(e.target.value));
+    $on("pdfPage", "keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); setPdfPage(e.target.value); e.target.blur(); } });
+    $on("pdfRotateLeft", "click", () => rotatePdf(-90));
+    $on("pdfRotateRight", "click", () => rotatePdf(90));
+    $on("pdfZoom", "input", (e) => setPdfZoom(e.target.value));
+    $on("pdfReload", "click", () => { const n = getNote(st.curNoteId); if (n && n.type === "pdf") void renderPdfPage(n.id); });
 
     // regex workshop
     ["regexScriptName", "regexFind", "regexReplace", "regexTrimStrings", "regexMinDepth", "regexMaxDepth"].forEach((id) => {

@@ -2,7 +2,7 @@
    업데이트를 배포할 때는 아래 CACHE 버전 숫자만 올리면
    기존 캐시가 정리되고 새 파일로 갱신됩니다. (예: v1 -> v2) */
 const CACHE_PREFIX = "luci-ink-";
-const CACHE = "luci-ink-v0.6-diary-icons30";
+const CACHE = "luci-ink-v0.6-pdf-workshop";
 
 const ASSETS = [
   "./",
@@ -58,6 +58,8 @@ const ASSETS = [
   "./idea-board-templates.js",
   "./idea-board-custom-templates.css",
   "./html2canvas.min.js",
+  "./pdf.min.js",
+  "./pdf.worker.min.js",
   "./idea-board-backgrounds/01-moonlit-crystal-castle.png",
   "./idea-board-backgrounds/02-firefly-forest.png",
   "./idea-board-backgrounds/03-butterfly-path.png",

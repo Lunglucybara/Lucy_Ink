@@ -2109,25 +2109,73 @@
     .rx-scroll { padding: 16px 12px 28px; }
     .rx-chips, .rx-two { grid-template-columns: 1fr; }
   }
-  }
 
   .saver {
-    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; min-width: max-content; height: 16px;
+    flex: 0 0 auto; display: inline-grid; grid-template-columns: 7px max-content; align-items: center; column-gap: 5px; min-width: max-content; height: 18px;
     font-size: 9.5px; line-height: 1; font-weight: 650; color: var(--faint); padding: 0 2px; white-space: nowrap; user-select: none;
   }
   .saver::before {
-    content: ""; display: none; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%;
+    content: ""; display: none; grid-column: 1; justify-self: center; align-self: center; width: 6px; height: 6px; border-radius: 50%;
     background: var(--faint); opacity: .55;
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 70%, transparent);
-    transform: translateY(1px);
-    transition: background .3s, box-shadow .3s, opacity .3s, transform .3s;
+    transition: background .3s, box-shadow .3s, opacity .3s;
   }
   .saver .dot { display: none !important; }
-  .saver > span:not(.dot) { display: block; line-height: 1; }
+  .saver > span:not(.dot) { grid-column: 2; display: block; line-height: 1; }
   .saver.dirty, .saver.saved { color: var(--muted); }
   .saver.dirty::before, .saver.saved::before { display: block; opacity: 1; }
   .saver.dirty::before { background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 74%, transparent); }
   .saver.saved::before { background: #59d98b; box-shadow: 0 0 7px color-mix(in srgb, #59d98b 64%, transparent); }
+
+  /* ===== PDF workshop ===== */
+  .pdf-workshop { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; background:var(--paper); }
+  .pdf-toolbar {
+    display:flex; align-items:center; gap:8px; min-height:47px; padding:8px 11px;
+    border-bottom:1px solid var(--line); background:linear-gradient(180deg, color-mix(in srgb, var(--surface) 84%, var(--accent-soft)), var(--surface));
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .pdf-toolbar::-webkit-scrollbar { display:none; }
+  .pdf-tool-btn, .pdf-page-step {
+    flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; border:1px solid var(--line); border-radius:9px;
+    background:var(--surface-2); color:var(--ink); cursor:pointer;
+  }
+  .pdf-tool-btn:disabled, .pdf-page-step:disabled { opacity:.45; cursor:default; }
+  .pdf-tool-btn svg, .pdf-page-step svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .pdf-meta { min-width:170px; max-width:42vw; color:var(--muted); font-size:11px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pdf-page-control { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; padding:0 5px; border:1px solid var(--line); border-radius:10px; background:var(--surface); height:34px; }
+  .pdf-page-control input { width:50px; height:24px; border:0; background:transparent; color:var(--ink); font:700 12px/1 var(--user-font); text-align:center; outline:none; }
+  .pdf-page-control span { color:var(--muted); font-size:11px; font-weight:700; white-space:nowrap; }
+  .pdf-toolbar-sep { flex:0 0 auto; width:1px; height:24px; background:var(--line); }
+  .pdf-zoom { width:92px; accent-color:var(--accent); }
+  .pdf-stage { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 260px; background:var(--bg); }
+  .pdf-viewer { min-width:0; min-height:0; position:relative; display:grid; place-items:center; overflow:auto; padding:18px; }
+  .pdf-empty, .pdf-loading {
+    width:min(420px, calc(100vw - 44px)); min-height:210px; display:grid; place-items:center; text-align:center; gap:12px; padding:24px;
+    border:1px dashed color-mix(in srgb, var(--accent) 42%, var(--line)); border-radius:14px; background:var(--surface); color:var(--muted);
+  }
+  .pdf-empty svg, .pdf-loading svg { width:42px; height:42px; fill:none; stroke:var(--accent); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .pdf-empty button, .pdf-panel button {
+    border:1px solid color-mix(in srgb, var(--accent) 48%, var(--line)); background:var(--accent-soft); color:var(--accent-ink);
+    border-radius:9px; padding:9px 12px; font:750 12px/1 var(--user-font); cursor:pointer;
+  }
+  .pdf-canvas-shell { position:relative; display:grid; place-items:center; min-width:min-content; }
+  #pdfCanvas { display:block; max-width:none; background:#fff; box-shadow:0 16px 45px rgba(14,24,44,.28); border-radius:5px; }
+  .pdf-fallback-frame { width:min(100%, 980px); height:100%; min-height:580px; border:0; border-radius:9px; background:#fff; box-shadow:0 16px 45px rgba(14,24,44,.23); }
+  .pdf-panel { min-width:0; border-left:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column; gap:12px; padding:13px; overflow:auto; }
+  .pdf-panel label { display:grid; gap:6px; color:var(--muted); font-size:11px; font-weight:750; }
+  .pdf-panel input, .pdf-panel textarea {
+    width:100%; border:1px solid var(--line); border-radius:9px; background:var(--surface-2); color:var(--ink);
+    padding:9px 10px; font:500 13px/1.45 var(--user-font); outline:none;
+  }
+  .pdf-panel textarea { min-height:160px; resize:vertical; }
+  .pdf-panel .pdf-panel-actions { display:grid; gap:8px; margin-top:auto; }
+  .pdf-status { color:var(--faint); font-size:11px; line-height:1.45; }
+  @media(max-width:820px){
+    .pdf-stage{grid-template-columns:1fr; grid-template-rows:minmax(0,1fr) auto;}
+    .pdf-panel{border-left:0;border-top:1px solid var(--line);max-height:34dvh;}
+    .pdf-meta{max-width:35vw;}
+    .pdf-fallback-frame{min-height:460px;}
+  }
 
   /* ===== FAB ===== */
   .fab {
@@ -3273,9 +3321,11 @@
   .memo-tag.t-idea { background:color-mix(in srgb,var(--accent) 70%,#f0bc47); color:color-mix(in srgb,var(--ink) 72%,#fff); }
   .memo-tag.t-html { background:color-mix(in srgb,var(--accent) 66%,#34c8bc); color:color-mix(in srgb,var(--ink) 76%,#fff); }
   .memo-tag.t-regex { background:color-mix(in srgb,var(--accent) 48%,#2fc79f); color:color-mix(in srgb,var(--ink) 76%,#fff); }
+  .memo-tag.t-pdf { background:color-mix(in srgb,var(--accent) 42%,#ef6f7a); color:color-mix(in srgb,var(--ink) 78%,#fff); }
   html[data-theme="dark"] .memo-tag.t-idea { color:#1d1820; }
   html[data-theme="dark"] .memo-tag.t-html { color:#102a2c; }
   html[data-theme="dark"] .memo-tag.t-regex { color:#0d2620; }
+  html[data-theme="dark"] .memo-tag.t-pdf { color:#2c1015; }
 
   /* ===== v64.2: 새 메모 런처 / 자동 백업 보관 설정 ===== */
   .type-picker-modal { max-height: min(78dvh, 680px); overflow: auto; overscroll-behavior: contain; padding-right: 2px; }
@@ -3944,10 +3994,11 @@
   }
   html[data-custom-theme] .sort-btn svg { stroke:var(--home-section-title-color) !important; }
   html[data-custom-theme] .modal h3 { color:var(--modal-title-color) !important; }
-  /* v66.7 · seven memo types stay distinct without seven manual colour inputs.
+  /* v66.7 · memo types stay distinct without manual colour inputs.
      Their colours are always recalculated from the custom main gradient stops. */
   html[data-custom-theme] .chip-section[data-note-type="free"] { --note-type-auto:var(--custom-note-type-free); }
   html[data-custom-theme] .chip-section[data-note-type="html"] { --note-type-auto:var(--custom-note-type-html); }
+  html[data-custom-theme] .chip-section[data-note-type="pdf"] { --note-type-auto:var(--custom-note-type-pdf); }
   html[data-custom-theme] .chip-section[data-note-type="lorebook"] { --note-type-auto:var(--custom-note-type-lorebook); }
   html[data-custom-theme] .chip-section[data-note-type="log"] { --note-type-auto:var(--custom-note-type-log); }
   html[data-custom-theme] .chip-section[data-note-type="persona"] { --note-type-auto:var(--custom-note-type-persona); }
@@ -3962,6 +4013,7 @@
   html[data-custom-theme] .chip-section[data-note-type] .csl-count { color:color-mix(in srgb,var(--note-type-auto) 32%,var(--custom-note-divider-count)) !important; }
   html[data-custom-theme] .memo-tag.t-free { background:var(--custom-note-type-free) !important; color:var(--custom-note-type-free-ink) !important; }
   html[data-custom-theme] .memo-tag.t-html { background:var(--custom-note-type-html) !important; color:var(--custom-note-type-html-ink) !important; }
+  html[data-custom-theme] .memo-tag.t-pdf { background:var(--custom-note-type-pdf) !important; color:var(--custom-note-type-pdf-ink) !important; }
   html[data-custom-theme] .memo-tag.t-lorebook { background:var(--custom-note-type-lorebook) !important; color:var(--custom-note-type-lorebook-ink) !important; }
   html[data-custom-theme] .memo-tag.t-log { background:var(--custom-note-type-log) !important; color:var(--custom-note-type-log-ink) !important; }
   html[data-custom-theme] .memo-tag.t-persona { background:var(--custom-note-type-persona) !important; color:var(--custom-note-type-persona-ink) !important; }
@@ -4251,8 +4303,8 @@
   .diary-hero-copy { min-width:0; }
   .diary-hero-copy small {
     display:inline-block; color:var(--accent);
-    font-family:'Cormorant Garamond', 'Nanum Myeongjo', Georgia, serif; font-style:italic; font-weight:600;
-    font-size:22px; letter-spacing:.12em; line-height:1; text-transform:uppercase; opacity:.98;
+    font-family:var(--user-font); font-style:normal; font-weight:850;
+    font-size:10px; letter-spacing:.18em; line-height:1; text-transform:uppercase; opacity:.78;
     filter:drop-shadow(0 1px 4px color-mix(in srgb, var(--accent) 26%, transparent));
   }
   .diary-hero-copy h2 { margin:2px 0 4px; color:var(--d-ink); font-size:20px; font-weight:900; line-height:1.12; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -4882,6 +4934,61 @@
     </div>
   </section>
 
+  <!-- ============ PDF WORKSHOP ============ -->
+  <section class="screen" id="screen-pdf">
+    <div class="topbar">
+      <button class="iconbtn nav-menu" aria-label="메뉴"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <button class="iconbtn nav-back" aria-label="뒤로"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="tb-title" id="pdfTitle">PDF 작업실</div>
+      <div class="saver" id="pdfSaver"><span class="dot"></span><span id="pdfSaverText"></span></div>
+      <button class="iconbtn" id="pdfPickFile" aria-label="PDF 선택" title="PDF 선택"><svg viewBox="0 0 24 24"><path d="M5 20h14"/><path d="M12 4v12M7 9l5-5 5 5"/></svg></button>
+      <button class="iconbtn" id="pdfExport" aria-label="PDF 내보내기" title="PDF 내보내기"><svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5"/><path d="M5 20h14"/></svg></button>
+      <button class="iconbtn" id="pdfExportImage" aria-label="현재 페이지 이미지 저장" title="현재 페이지 이미지 저장"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.7"/><path d="M21 16l-5-5L5 21"/></svg></button>
+      <button class="iconbtn" id="pdfSave" aria-label="저장"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4"/><path d="M8 14h8v6H8z"/></svg></button>
+      <button class="iconbtn" id="pdfMore" aria-label="더보기"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+    </div>
+    <div class="pdf-workshop">
+      <div class="pdf-toolbar">
+        <span class="pdf-meta" id="pdfMeta">PDF 없음</span>
+        <span class="pdf-toolbar-sep"></span>
+        <button class="pdf-page-step" id="pdfPrev" type="button" aria-label="이전 페이지"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <label class="pdf-page-control"><input id="pdfPage" type="number" min="1" value="1" inputmode="numeric" aria-label="페이지"><span id="pdfPageTotal">/ 1</span></label>
+        <button class="pdf-page-step" id="pdfNext" type="button" aria-label="다음 페이지"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <span class="pdf-toolbar-sep"></span>
+        <button class="pdf-tool-btn" id="pdfRotateLeft" type="button" aria-label="왼쪽으로 회전"><svg viewBox="0 0 24 24"><path d="M4 7v6h6"/><path d="M5.5 13A7 7 0 1 0 8 5.7"/></svg></button>
+        <button class="pdf-tool-btn" id="pdfRotateRight" type="button" aria-label="오른쪽으로 회전"><svg viewBox="0 0 24 24"><path d="M20 7v6h-6"/><path d="M18.5 13A7 7 0 1 1 16 5.7"/></svg></button>
+        <input class="pdf-zoom" id="pdfZoom" type="range" min="60" max="220" step="10" value="120" aria-label="확대">
+        <span class="pdf-meta" id="pdfZoomLabel">120%</span>
+        <span class="pdf-toolbar-sep"></span>
+        <button class="pdf-tool-btn" id="pdfReload" type="button" aria-label="다시 렌더링"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg></button>
+      </div>
+      <div class="pdf-stage">
+        <div class="pdf-viewer" id="pdfViewer">
+          <div class="pdf-empty" id="pdfEmpty">
+            <svg viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+            <button type="button" id="pdfPickFirst">PDF 선택</button>
+          </div>
+          <div class="pdf-loading" id="pdfLoading" hidden>
+            <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+            <span>렌더링 중</span>
+          </div>
+          <div class="pdf-canvas-shell" id="pdfCanvasShell" hidden><canvas id="pdfCanvas"></canvas></div>
+          <iframe class="pdf-fallback-frame" id="pdfFallbackFrame" title="PDF 미리보기" hidden></iframe>
+        </div>
+        <aside class="pdf-panel">
+          <label>파일 이름<input id="pdfFileName" maxlength="120" placeholder="PDF 파일 이름"></label>
+          <label>작업 메모<textarea id="pdfMemo" placeholder="페이지 확인 내용이나 편집 메모"></textarea></label>
+          <div class="pdf-status" id="pdfStatus">PDF.js 대기</div>
+          <div class="pdf-panel-actions">
+            <button type="button" id="pdfPanelReplace">PDF 교체</button>
+            <button type="button" id="pdfPanelExport">PDF 내보내기</button>
+            <button type="button" id="pdfPanelImage">현재 페이지 PNG</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ LOREBOOK ============ -->
   <section class="screen" id="screen-lore">
     <div class="topbar">
@@ -5204,6 +5311,7 @@
   <input type="file" id="ideaMediaInput" class="hidden-input" accept="image/*,audio/*,video/*">
   <input type="file" id="ideaCanvasBgInput" class="hidden-input">
   <input type="file" id="ideaFileInput" class="hidden-input">
+  <input type="file" id="pdfInput" class="hidden-input" accept="application/pdf,.pdf">
 
   <!-- ============ SETTINGS ============ -->
   <section class="screen" id="screen-settings">
@@ -5377,7 +5485,7 @@
     purple: { name: "라벤더 퍼플",  c: "#c79bff" },
     grey:   { name: "미스티 그레이",c: "#b8bdcc" }
   };
-  const TYPE_LABEL = { free: "자유", html: "코드 작업실", regex: "정규식 작업실", lorebook: "로어북", log: "로그", persona: "페르소나", character: "캐릭터", idea: "아이디어 보드" };
+  const TYPE_LABEL = { free: "자유", html: "코드 작업실", regex: "정규식 작업실", pdf: "PDF 작업실", lorebook: "로어북", log: "로그", persona: "페르소나", character: "캐릭터", idea: "아이디어 보드" };
 
   /* ---------- IndexedDB ---------- */
   const DB_NAME = "inkMemoDB", DB_VER = 5;
