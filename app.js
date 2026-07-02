@@ -788,7 +788,7 @@
     const btn = $("homeFab"); if (!btn) return;
     if (isDiaryMode()) {
       btn.setAttribute("aria-label", "메모 화면으로 돌아가기");
-      btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/><path d="M20 12H9"/></svg>';
+      btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 11.2V16.6A2.4 2.4 0 0 1 15.6 19H7.4A2.4 2.4 0 0 1 5 16.6V7.4A2.4 2.4 0 0 1 7.4 5H12.8"/><path d="M8.6 12.2H12.6"/><path d="M8.6 15.2H11.2"/><path d="M17.1 4.2l2.7 2.7-5.9 5.9-3.4.7.7-3.4z"/></svg>';
     } else {
       btn.setAttribute("aria-label", "다이어리 화면으로 전환");
       btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M8 14h3M13 14h3M8 17h3"/></svg>';
