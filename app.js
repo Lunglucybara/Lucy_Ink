@@ -2369,6 +2369,16 @@
           else copy.data.canvas.backgroundImage=null;
         }
       }
+      if (src.type === "pdf" && copy.data && Array.isArray(copy.data.pages)) {
+        copy.data.pages = copy.data.pages.map((page) => {
+          if (!page || page.kind === "blank") return page;
+          const nextId = copiedFileIdMap.get(page.attachmentId);
+          return nextId ? Object.assign({}, page, { attachmentId: nextId }) : null;
+        }).filter(Boolean);
+        copy.data.selectedPages = [];
+        copy.data.pageCount = copy.data.pages.length;
+        copy.data.currentPage = Math.max(1, Math.min(copy.data.pageCount || 1, Number(copy.data.currentPage) || 1));
+      }
       return copy;
     } catch (err) {
       await Promise.all(createdFileIds.map((fileId) => del("files", fileId).catch(() => {})));
@@ -3136,6 +3146,521 @@
       await replacePdfFile(file);
       go({ s:"pdf" });
     });
+  }
+
+  /* ---------- PDF workshop extension: merge, reorder, select, annotate, edited export ---------- */
+  const PDF_EDIT_MAX_BYTES = 80 * 1024 * 1024;
+  const PDF_EDIT_MAX_ATTACHMENTS = 24;
+  const PDFLIB_LOCAL_SRC = "./pdf-lib.min.js";
+  const PDFLIB_CDN_SRC = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js";
+  let pdfEditLibPromise = null, pdfEditLoadedDocs = new Map(), pdfEditObjectUrls = new Map(), pdfTextDrag = null;
+
+  function makePdfData() {
+    return { attachments: [], pages: [], currentPage: 1, pageCount: 0, zoom: 1.2, rotation: 0, memo: "", editMode: false, selectedPages: [] };
+  }
+  function pdfSafeId(value) { const text = String(value || ""); return text && text.length < 180 ? text : uid(); }
+  function pdfClamp01(value, fallback) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback; }
+  function pdfNormalizeHex(value, fallback) {
+    const match = String(value || "").trim().match(/^#?([0-9a-f]{6})$/i);
+    return match ? `#${match[1].toUpperCase()}` : (fallback || "#111827");
+  }
+  function normalizePdfTextBox(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const w = Math.max(0.08, Math.min(0.86, Number(src.w) || 0.34));
+    const h = Math.max(0.05, Math.min(0.7, Number(src.h) || 0.14));
+    return {
+      id: pdfSafeId(src.id),
+      x: Math.min(1 - w, pdfClamp01(src.x, 0.12)),
+      y: Math.min(1 - h, pdfClamp01(src.y, 0.12)),
+      w, h,
+      text: cleanImportedText(src.text, 4000),
+      fontSize: Math.max(8, Math.min(42, Math.round(Number(src.fontSize) || 13))),
+      color: pdfNormalizeHex(src.color, "#111827"),
+      background: pdfNormalizeHex(src.background, "#FFFFFF")
+    };
+  }
+  function pdfPagesForAttachment(attachment, count) {
+    const total = Math.max(0, Math.min(2000, Math.round(Number(count) || 0)));
+    return Array.from({ length: total }, (_, index) => ({ id: uid(), kind: "pdf", attachmentId: attachment.id, sourcePage: index + 1, rotation: 0, textBoxes: [] }));
+  }
+  function normalizePdfPage(raw, attachments) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const textBoxes = Array.isArray(src.textBoxes) ? src.textBoxes.map(normalizePdfTextBox).slice(0, 80) : [];
+    const rotation = (((Math.round(Number(src.rotation) || 0) % 360) + 360) % 360);
+    if (src.kind === "blank") {
+      return { id: pdfSafeId(src.id), kind: "blank", width: Math.max(120, Math.min(2400, Number(src.width) || 595)), height: Math.max(120, Math.min(2400, Number(src.height) || 842)), rotation: rotation - (rotation % 90), textBoxes };
+    }
+    const ids = new Set(attachments.map((item) => item.id));
+    const attachmentId = ids.has(src.attachmentId) ? src.attachmentId : (attachments[0] && attachments[0].id);
+    if (!attachmentId) return null;
+    return { id: pdfSafeId(src.id), kind: "pdf", attachmentId, sourcePage: Math.max(1, Math.min(2000, Math.round(Number(src.sourcePage) || Number(src.page) || 1))), rotation: rotation - (rotation % 90), textBoxes };
+  }
+  function normalizePdfData(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const attachments = normalizeImportedAttachments(src.attachments).filter((item) => /pdf/i.test(`${item.type || ""} ${item.name || ""}`)).slice(0, PDF_EDIT_MAX_ATTACHMENTS);
+    let pages = Array.isArray(src.pages) ? src.pages.map((page) => normalizePdfPage(page, attachments)).filter(Boolean) : [];
+    const legacyCount = Math.max(0, Math.min(99999, Math.round(Number(src.pageCount) || 0)));
+    if (!pages.length && attachments[0] && legacyCount) pages = pdfPagesForAttachment(attachments[0], legacyCount);
+    const pageCount = pages.length || legacyCount;
+    const currentPage = Math.max(1, Math.min(pageCount || 1, Math.round(Number(src.currentPage) || 1)));
+    const zoom = Math.max(0.6, Math.min(2.2, Number(src.zoom) || 1.2));
+    const rotation = ((Math.round(Number(src.rotation) || 0) % 360) + 360) % 360;
+    const validPageIds = new Set(pages.map((page) => page.id));
+    const selectedPages = Array.isArray(src.selectedPages) ? src.selectedPages.map(String).filter((id) => validPageIds.has(id)).slice(0, 500) : [];
+    return { attachments, pages, currentPage, pageCount, zoom, rotation: rotation - (rotation % 90), memo: cleanImportedText(src.memo, 20000), editMode: !!src.editMode, selectedPages };
+  }
+  function pdfAttachmentFromData(data) { return normalizePdfData(data).attachments[0] || null; }
+  function pdfAttachment(n) { return n && n.data ? pdfAttachmentFromData(n.data) : null; }
+  function pdfAttachmentById(data, id) {
+    const d = Array.isArray(data.attachments) ? data : normalizePdfData(data);
+    return (d.attachments || []).find((item) => item.id === id) || null;
+  }
+  function pdfSourceSummary(n) {
+    const d = normalizePdfData(n && n.data);
+    if (d.pages.length) return `페이지 ${d.pages.length}개 · PDF ${d.attachments.length}개`;
+    const a = d.attachments[0];
+    if (a) return `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}`;
+    return String(d.memo || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  }
+  function pdfEditorData(n) {
+    const base = normalizePdfData(n && n.data);
+    const nameInput = $("pdfFileName"), memoInput = $("pdfMemo");
+    if (base.attachments[0] && nameInput) base.attachments[0].name = cleanImportedText(nameInput.value, 240).trim() || base.attachments[0].name || "document.pdf";
+    if (memoInput) base.memo = cleanImportedText(memoInput.value, 20000);
+    return base;
+  }
+  function schedulePdfSave(delay) {
+    const session = pdfWorkshopSession;
+    if (!session || !session.active || curView().s !== "pdf") return;
+    session.dirty = true; setPdfSaver("dirty");
+    clearTimeout(pdfSaveTimer);
+    pdfSaveTimer = setTimeout(() => void flushPdfWorkshop(false), delay == null ? 550 : delay);
+  }
+  async function flushPdfWorkshop(silent) {
+    clearTimeout(pdfSaveTimer); pdfSaveTimer = null;
+    const session = pdfWorkshopSession;
+    if (!session || !session.active || !session.noteId) return;
+    const n = getNote(session.noteId); if (!n || n.type !== "pdf") return;
+    const next = pdfEditorData(n);
+    if (!jsonSame(normalizePdfData(n.data || {}), next)) { n.data = next; await saveNote(n); }
+    session.dirty = false;
+    if (!silent) setPdfSaver("saved");
+    renderSidebar();
+  }
+  async function ensurePdfLib() {
+    if (window.PDFLib) return window.PDFLib;
+    if (!pdfEditLibPromise) {
+      pdfEditLibPromise = (async () => {
+        try { await loadScriptOnce(PDFLIB_LOCAL_SRC); }
+        catch (localError) { await loadScriptOnce(PDFLIB_CDN_SRC); }
+        if (!window.PDFLib) throw new Error("pdf-lib unavailable");
+        return window.PDFLib;
+      })();
+    }
+    return pdfEditLibPromise;
+  }
+  function clearPdfEditCaches() {
+    pdfEditLoadedDocs.forEach((doc) => { if (doc && doc.destroy) { try { doc.destroy(); } catch (e) {} } });
+    pdfEditLoadedDocs.clear();
+    pdfEditObjectUrls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (e) {} });
+    pdfEditObjectUrls.clear();
+    try { revokePdfObjectUrl(); } catch (e) {}
+  }
+  function pdfBlobUrl(fileId, blob) {
+    if (pdfEditObjectUrls.has(fileId)) return pdfEditObjectUrls.get(fileId);
+    const url = URL.createObjectURL(blob);
+    pdfEditObjectUrls.set(fileId, url);
+    return url;
+  }
+  async function pdfRecordByAttachment(attachment) {
+    if (!attachment || !attachment.id) return null;
+    const rec = await getOne("files", attachment.id);
+    return rec && rec.blob ? rec : null;
+  }
+  async function pdfRecord(n) { return pdfRecordByAttachment(pdfAttachment(n)); }
+  async function pdfDocForAttachment(attachment) {
+    if (!attachment) return null;
+    if (pdfEditLoadedDocs.has(attachment.id)) return pdfEditLoadedDocs.get(attachment.id);
+    const rec = await pdfRecordByAttachment(attachment);
+    if (!rec || !rec.blob) return null;
+    const lib = await ensurePdfJs();
+    const doc = await lib.getDocument({ data: await rec.blob.arrayBuffer() }).promise;
+    pdfEditLoadedDocs.set(attachment.id, doc);
+    return doc;
+  }
+  async function pdfPageCountFromBlob(blob) {
+    const lib = await ensurePdfJs();
+    const doc = await lib.getDocument({ data: await blob.arrayBuffer() }).promise;
+    const count = doc.numPages || 0;
+    if (doc.destroy) { try { await doc.destroy(); } catch (e) {} }
+    return count;
+  }
+  async function storePdfAttachment(n, file) {
+    if (!isPdfFile(file)) throw new Error("not pdf");
+    if (file.size > PDF_EDIT_MAX_BYTES) throw new Error("too large");
+    const id = uid(), type = file.type || "application/pdf", name = cleanImportedText(file.name, 240) || "document.pdf";
+    await put("files", { id, noteId:n.id, name, type, size:file.size, blob:file, createdAt:now() });
+    const attachment = { id, name, type, size:file.size };
+    let pageCount = 0;
+    try { pageCount = await pdfPageCountFromBlob(file); } catch (e) {}
+    return { attachment, pages: pdfPagesForAttachment(attachment, pageCount) };
+  }
+  function renderPdfPageList(d) {
+    const list = $("pdfPageList"); if (!list) return;
+    const selected = new Set(d.selectedPages || []);
+    if (!d.pages.length) { list.innerHTML = '<div class="pdf-status">페이지가 없습니다.</div>'; return; }
+    list.innerHTML = d.pages.map((page, index) => {
+      const source = page.kind === "blank" ? "빈 페이지" : `원본 ${page.sourcePage}`;
+      return `<div class="pdf-page-row ${index + 1 === d.currentPage ? "active" : ""}" data-pdf-page-index="${index}"><input type="checkbox" ${selected.has(page.id) ? "checked" : ""} aria-label="${index + 1}페이지 선택"><span>${index + 1}페이지</span><small>${source}</small></div>`;
+    }).join("");
+  }
+  function syncPdfControls(n) {
+    const d = normalizePdfData(n && n.data), count = d.pages.length || d.pageCount || 0, a = d.attachments[0];
+    $("pdfTitle").textContent = n && n.title ? n.title : "PDF 작업실";
+    $("pdfMeta").textContent = count ? `페이지 ${count}개 · PDF ${d.attachments.length}개` : (a ? `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}` : "PDF 없음");
+    $("pdfFileName").value = a ? (a.name || "document.pdf") : "";
+    $("pdfMemo").value = d.memo || "";
+    $("pdfPage").value = String(d.currentPage || 1);
+    $("pdfPage").max = String(count || 99999);
+    $("pdfPageTotal").textContent = `/ ${count || 1}`;
+    $("pdfZoom").value = String(Math.round((d.zoom || 1.2) * 100));
+    $("pdfZoomLabel").textContent = `${Math.round((d.zoom || 1.2) * 100)}%`;
+    if ($("pdfAttachSummary")) $("pdfAttachSummary").textContent = `${d.attachments.length}개 파일`;
+    if ($("pdfSelectionSummary")) $("pdfSelectionSummary").textContent = d.selectedPages.length ? `${d.selectedPages.length}개 선택` : "선택 없음";
+    if ($("pdfEditMode")) $("pdfEditMode").checked = !!d.editMode;
+    if ($("pdfEditToggle")) $("pdfEditToggle").classList.toggle("active", !!d.editMode);
+    ["pdfPrev", "pdfNext", "pdfRotateLeft", "pdfRotateRight", "pdfReload", "pdfExport", "pdfExportImage", "pdfPanelExport", "pdfPanelImage", "pdfAddText", "pdfPanelAddText"].forEach((id) => { const el = $(id); if (el) el.disabled = !count; });
+    ["pdfMovePagesUp", "pdfMovePagesDown", "pdfDeletePages", "pdfSelectAll", "pdfClearSelection"].forEach((id) => { const el = $(id); if (el) el.disabled = !count; });
+    renderPdfPageList(d);
+  }
+  function showPdfEmpty(show) {
+    $("pdfEmpty").hidden = !show;
+    $("pdfCanvasShell").hidden = true;
+    $("pdfFallbackFrame").hidden = true;
+    $("pdfLoading").hidden = true;
+    if ($("pdfTextLayer")) $("pdfTextLayer").innerHTML = "";
+  }
+  function pdfCurrentCanvasSize(d) {
+    const canvas = $("pdfCanvas"), zoom = (d && d.zoom) || 1.2;
+    const cssW = parseFloat(canvas && canvas.style.width) || 714;
+    const cssH = parseFloat(canvas && canvas.style.height) || 1010;
+    return { width: Math.max(120, cssW / zoom), height: Math.max(120, cssH / zoom) };
+  }
+  function renderPdfTextLayer(d, entry) {
+    const layer = $("pdfTextLayer"), canvas = $("pdfCanvas"); if (!layer || !canvas || !entry) return;
+    layer.innerHTML = "";
+    layer.style.pointerEvents = d.editMode ? "auto" : "none";
+    (entry.textBoxes || []).forEach((box) => {
+      const item = document.createElement("div");
+      item.className = "pdf-textbox"; item.dataset.pdfTextId = box.id;
+      item.style.left = `${box.x * 100}%`; item.style.top = `${box.y * 100}%`; item.style.width = `${box.w * 100}%`; item.style.height = `${box.h * 100}%`;
+      item.innerHTML = `<div class="pdf-textbox-grip">텍스트<button type="button" aria-label="텍스트박스 삭제">×</button></div><textarea class="pdf-textbox-edit" spellcheck="false"></textarea>`;
+      const area = item.querySelector("textarea");
+      area.value = box.text || ""; area.style.fontSize = `${box.fontSize || 13}px`; area.style.color = box.color || "#111827";
+      layer.appendChild(item);
+    });
+  }
+  async function ensurePdfPageModel(n, d, attachment, doc) {
+    if (!attachment || d.pages.length) return d;
+    const pages = pdfPagesForAttachment(attachment, doc && doc.numPages ? doc.numPages : d.pageCount);
+    if (!pages.length) return d;
+    const next = Object.assign({}, d, { pages, pageCount: pages.length, currentPage: Math.min(d.currentPage || 1, pages.length) });
+    n.data = next; await saveNote(n);
+    return normalizePdfData(n.data);
+  }
+  async function renderPdfPage(id) {
+    const token = ++pdfRenderToken;
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    let d = normalizePdfData(n.data || {});
+    syncPdfControls(n);
+    if (!d.attachments.length && !d.pages.length) { showPdfEmpty(true); $("pdfStatus").textContent = "PDF 없음"; return; }
+    $("pdfEmpty").hidden = true; $("pdfLoading").hidden = false;
+    try {
+      let entry = d.pages[(d.currentPage || 1) - 1];
+      if (!entry && d.attachments[0]) {
+        const doc = await pdfDocForAttachment(d.attachments[0]);
+        if (token !== pdfRenderToken) return;
+        d = await ensurePdfPageModel(n, d, d.attachments[0], doc);
+        entry = d.pages[(d.currentPage || 1) - 1];
+      }
+      if (!entry) { showPdfEmpty(true); $("pdfStatus").textContent = "페이지가 없습니다"; return; }
+      if (pdfRenderTask && pdfRenderTask.cancel) { try { pdfRenderTask.cancel(); } catch (e) {} }
+      const canvas = $("pdfCanvas"), ctx = canvas.getContext("2d", { alpha:false });
+      const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+      if (entry.kind === "blank") {
+        const width = (entry.width || 595) * (d.zoom || 1.2), height = (entry.height || 842) * (d.zoom || 1.2);
+        canvas.width = Math.floor(width * outputScale); canvas.height = Math.floor(height * outputScale);
+        canvas.style.width = `${Math.floor(width)}px`; canvas.style.height = `${Math.floor(height)}px`;
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        $("pdfStatus").textContent = `빈 페이지 · ${d.currentPage}/${d.pages.length}페이지`;
+      } else {
+        const attachment = pdfAttachmentById(d, entry.attachmentId) || d.attachments[0];
+        const doc = await pdfDocForAttachment(attachment);
+        if (token !== pdfRenderToken) return;
+        if (!doc) { showPdfEmpty(true); $("pdfStatus").textContent = "PDF 파일을 찾지 못했어요"; return; }
+        const pageNo = Math.max(1, Math.min(doc.numPages || 1, entry.sourcePage || 1));
+        const page = await doc.getPage(pageNo);
+        if (token !== pdfRenderToken) return;
+        const viewport = page.getViewport({ scale: (d.zoom || 1.2) * outputScale, rotation: ((d.rotation || 0) + (entry.rotation || 0)) % 360 });
+        canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height);
+        canvas.style.width = `${Math.floor(viewport.width / outputScale)}px`; canvas.style.height = `${Math.floor(viewport.height / outputScale)}px`;
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        pdfRenderTask = page.render({ canvasContext: ctx, viewport });
+        await pdfRenderTask.promise;
+        if (token !== pdfRenderToken) return;
+        $("pdfStatus").textContent = `PDF.js · ${d.currentPage}/${d.pages.length || doc.numPages}페이지 · 원본 ${pageNo}`;
+      }
+      $("pdfLoading").hidden = true; $("pdfCanvasShell").hidden = false; $("pdfFallbackFrame").hidden = true;
+      renderPdfTextLayer(d, entry);
+      syncPdfControls(getNote(id) || n);
+    } catch (error) {
+      console.warn("pdf render", error);
+      if (token !== pdfRenderToken) return;
+      $("pdfLoading").hidden = true; $("pdfCanvasShell").hidden = true;
+      const first = d.attachments[0], rec = first ? await pdfRecordByAttachment(first).catch(() => null) : null;
+      if (rec && rec.blob) { const frame = $("pdfFallbackFrame"); frame.src = `${pdfBlobUrl(first.id, rec.blob)}#page=${d.currentPage || 1}`; frame.hidden = false; }
+      else showPdfEmpty(true);
+      $("pdfStatus").textContent = "PDF 렌더링을 완료하지 못했어요";
+    }
+  }
+  function beginPdfWorkshopSession(n) {
+    const same = pdfWorkshopSession && pdfWorkshopSession.active && pdfWorkshopSession.noteId === n.id;
+    if (!same) { clearTimeout(pdfSaveTimer); pdfSaveTimer = null; pdfWorkshopSession = { noteId:n.id, active:true, dirty:false }; clearPdfEditCaches(); }
+    n.data = normalizePdfData(n.data || {});
+    syncPdfControls(n); setPdfSaver("");
+    void renderPdfPage(n.id);
+  }
+  function renderPdfWorkshop() { const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") { back(); return; } beginPdfWorkshopSession(n); }
+  async function replacePdfFile(file) {
+    const n = getNote(st.curNoteId);
+    if (!n || n.type !== "pdf" || !file) return;
+    if (!isPdfFile(file)) { toast("PDF 파일만 선택할 수 있어요"); return; }
+    if (file.size > PDF_EDIT_MAX_BYTES) { toast("PDF는 80MB 이하만 저장할 수 있어요"); return; }
+    const oldAttachments = normalizePdfData(n.data || {}).attachments;
+    let stored = null;
+    try {
+      stored = await storePdfAttachment(n, file);
+      n.data = Object.assign({}, normalizePdfData(n.data || {}), { attachments:[stored.attachment], pages:stored.pages, currentPage:1, pageCount:stored.pages.length, rotation:0, selectedPages:[] });
+      if (!n.titleLocked) n.title = pdfFileBaseName(stored.attachment.name) || "PDF 작업실";
+      await saveNote(n);
+      await Promise.all(oldAttachments.map((a) => a && a.id !== stored.attachment.id ? del("files", a.id).catch(() => {}) : Promise.resolve()));
+      clearPdfEditCaches(); render(); renderSidebar(); toast("PDF를 열었어요");
+    } catch (e) {
+      if (stored && stored.attachment) await del("files", stored.attachment.id).catch(() => {});
+      toast(e && e.message === "too large" ? "PDF는 80MB 이하만 저장할 수 있어요" : "PDF 저장에 실패했어요");
+    }
+  }
+  async function appendPdfFiles(files) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const list = Array.from(files || []).filter(Boolean); if (!list.length) return;
+    let d = normalizePdfData(n.data || {}), added = 0, created = [];
+    try {
+      for (const file of list) {
+        if (!isPdfFile(file)) { toast("PDF 파일만 추가할 수 있어요"); continue; }
+        if (file.size > PDF_EDIT_MAX_BYTES) { toast(`${file.name || "PDF"}는 80MB를 넘어서 건너뛰었어요`); continue; }
+        if (d.attachments.length >= PDF_EDIT_MAX_ATTACHMENTS) { toast(`PDF는 최대 ${PDF_EDIT_MAX_ATTACHMENTS}개까지 병합할 수 있어요`); break; }
+        const stored = await storePdfAttachment(n, file);
+        created.push(stored.attachment.id); d.attachments.push(stored.attachment); d.pages.push(...stored.pages); added++;
+      }
+      if (!added) return;
+      d.pageCount = d.pages.length; d.currentPage = Math.max(1, d.pages.length - (created.length ? 0 : 1)); d.selectedPages = [];
+      n.data = normalizePdfData(d); await saveNote(n);
+      clearPdfEditCaches(); syncPdfControls(n); void renderPdfPage(n.id); renderSidebar(); toast(`PDF ${added}개를 병합했어요`);
+    } catch (e) {
+      await Promise.all(created.map((id) => del("files", id).catch(() => {})));
+      toast("PDF 병합에 실패했어요");
+    }
+  }
+  function setPdfPage(page) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), max = d.pages.length || d.pageCount || 1;
+    const next = Math.max(1, Math.min(max, Math.round(Number(page) || 1)));
+    if (d.currentPage === next) return;
+    n.data = Object.assign({}, d, { currentPage: next }); syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id);
+  }
+  function setPdfEditMode(on) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}); d.editMode = !!on; n.data = d; syncPdfControls(n); schedulePdfSave(200); void renderPdfPage(n.id);
+  }
+  function selectAllPdfPages() { const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return; const d = normalizePdfData(n.data || {}); d.editMode = true; d.selectedPages = d.pages.map((page) => page.id); n.data = d; syncPdfControls(n); schedulePdfSave(200); }
+  function clearPdfSelection() { const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return; const d = normalizePdfData(n.data || {}); d.selectedPages = []; n.data = d; syncPdfControls(n); schedulePdfSave(200); }
+  function togglePdfPageSelection(index, checked) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), page = d.pages[index]; if (!page) return;
+    const selected = new Set(d.selectedPages || []); if (checked) selected.add(page.id); else selected.delete(page.id);
+    d.editMode = true; d.selectedPages = [...selected]; n.data = d; syncPdfControls(n); schedulePdfSave(200);
+  }
+  function movePdfSelectedPages(delta) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), current = d.pages[(d.currentPage || 1) - 1], selected = new Set((d.selectedPages || []).length ? d.selectedPages : (current ? [current.id] : []));
+    if (!selected.size) return;
+    const pages = d.pages.slice();
+    if (delta < 0) for (let i = 1; i < pages.length; i++) { if (selected.has(pages[i].id) && !selected.has(pages[i - 1].id)) [pages[i - 1], pages[i]] = [pages[i], pages[i - 1]]; }
+    else for (let i = pages.length - 2; i >= 0; i--) { if (selected.has(pages[i].id) && !selected.has(pages[i + 1].id)) [pages[i + 1], pages[i]] = [pages[i], pages[i + 1]]; }
+    d.pages = pages; d.currentPage = Math.max(1, pages.findIndex((page) => current && page.id === current.id) + 1) || 1;
+    n.data = d; syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id);
+  }
+  function deletePdfSelectedPages() {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), current = d.pages[(d.currentPage || 1) - 1], selected = new Set((d.selectedPages || []).length ? d.selectedPages : (current ? [current.id] : []));
+    if (!selected.size) return;
+    if (d.pages.length - selected.size < 1) { toast("마지막 페이지는 삭제할 수 없어요"); return; }
+    d.pages = d.pages.filter((page) => !selected.has(page.id));
+    d.currentPage = Math.max(1, Math.min(d.currentPage, d.pages.length)); d.pageCount = d.pages.length; d.selectedPages = [];
+    n.data = d; syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id); toast("페이지를 삭제했어요");
+  }
+  function addBlankPdfPage() {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), size = pdfCurrentCanvasSize(d), page = { id: uid(), kind: "blank", width:size.width, height:size.height, rotation:0, textBoxes:[] };
+    const index = Math.max(0, Math.min(d.pages.length, d.currentPage || d.pages.length));
+    d.pages.splice(index, 0, page); d.currentPage = index + 1; d.pageCount = d.pages.length; d.selectedPages = [];
+    n.data = d; syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id); toast("빈 페이지를 추가했어요");
+  }
+  function addPdfTextBox() {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), entry = d.pages[(d.currentPage || 1) - 1];
+    if (!entry) { toast("텍스트를 넣을 페이지가 없어요"); return; }
+    entry.textBoxes = Array.isArray(entry.textBoxes) ? entry.textBoxes : [];
+    entry.textBoxes.push({ id: uid(), x: .12, y: .12, w: .36, h: .14, text: "메모", fontSize: 13, color:"#111827", background:"#FFFFFF" });
+    d.editMode = true; n.data = d; syncPdfControls(n); schedulePdfSave(300); renderPdfTextLayer(d, entry);
+  }
+  function updatePdfTextBox(textId, patch, rerender) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), entry = d.pages[(d.currentPage || 1) - 1]; if (!entry) return;
+    const box = (entry.textBoxes || []).find((item) => item.id === textId); if (!box) return;
+    Object.assign(box, patch || {}); n.data = d; schedulePdfSave(350); if (rerender) renderPdfTextLayer(d, entry);
+  }
+  function removePdfTextBox(textId) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {}), entry = d.pages[(d.currentPage || 1) - 1]; if (!entry) return;
+    entry.textBoxes = (entry.textBoxes || []).filter((item) => item.id !== textId);
+    n.data = d; syncPdfControls(n); schedulePdfSave(300); renderPdfTextLayer(d, entry);
+  }
+  function beginPdfTextDrag(event) {
+    const grip = event.target.closest && event.target.closest(".pdf-textbox-grip");
+    if (!grip || event.target.closest("button")) return;
+    const boxEl = grip.closest(".pdf-textbox"), layer = $("pdfTextLayer"); if (!boxEl || !layer) return;
+    const rect = layer.getBoundingClientRect(), id = boxEl.dataset.pdfTextId;
+    const n = getNote(st.curNoteId), d = normalizePdfData(n && n.data), entry = d.pages[(d.currentPage || 1) - 1], box = entry && (entry.textBoxes || []).find((item) => item.id === id);
+    if (!box) return;
+    pdfTextDrag = { id, startX:event.clientX, startY:event.clientY, x:box.x, y:box.y, w:box.w, h:box.h, rect };
+    event.preventDefault();
+  }
+  function movePdfTextDrag(event) {
+    if (!pdfTextDrag) return;
+    const dx = (event.clientX - pdfTextDrag.startX) / Math.max(1, pdfTextDrag.rect.width);
+    const dy = (event.clientY - pdfTextDrag.startY) / Math.max(1, pdfTextDrag.rect.height);
+    updatePdfTextBox(pdfTextDrag.id, { x: Math.max(0, Math.min(1 - pdfTextDrag.w, pdfTextDrag.x + dx)), y: Math.max(0, Math.min(1 - pdfTextDrag.h, pdfTextDrag.y + dy)) }, true);
+  }
+  function endPdfTextDrag() { pdfTextDrag = null; }
+  function pdfHexRgb(hex) { const h = pdfNormalizeHex(hex, "#111827").slice(1); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+  function wrapCanvasText(ctx, text, maxWidth) {
+    const out = [];
+    String(text || "").split(/\r?\n/).forEach((paragraph) => {
+      let line = "";
+      for (const ch of paragraph) { const next = line + ch; if (line && ctx.measureText(next).width > maxWidth) { out.push(line); line = ch; } else line = next; }
+      out.push(line || "");
+    });
+    return out;
+  }
+  async function renderPdfTextBoxImage(box, width, height) {
+    const scale = 2, canvas = document.createElement("canvas");
+    canvas.width = Math.max(16, Math.ceil(width * scale)); canvas.height = Math.max(16, Math.ceil(height * scale));
+    const ctx = canvas.getContext("2d"); ctx.scale(scale, scale);
+    const bg = pdfHexRgb(box.background || "#FFFFFF");
+    ctx.fillStyle = `rgba(${bg[0]},${bg[1]},${bg[2]},.78)`; ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "rgba(59,130,246,.72)"; ctx.lineWidth = 1; ctx.strokeRect(.5, .5, Math.max(1, width - 1), Math.max(1, height - 1));
+    const color = pdfHexRgb(box.color || "#111827"), fontSize = Math.max(8, Number(box.fontSize) || 13);
+    ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+    ctx.font = `600 ${fontSize}px ${getComputedStyle(document.body).fontFamily || "sans-serif"}`; ctx.textBaseline = "top";
+    const lines = wrapCanvasText(ctx, box.text || "", Math.max(1, width - 14)), lineHeight = fontSize * 1.45;
+    lines.slice(0, Math.max(1, Math.floor((height - 12) / lineHeight))).forEach((line, index) => ctx.fillText(line, 7, 6 + index * lineHeight));
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  }
+  async function drawPdfTextBoxes(outDoc, page, entry) {
+    const boxes = (entry && Array.isArray(entry.textBoxes)) ? entry.textBoxes.filter((box) => String(box.text || "").trim()) : [];
+    if (!boxes.length) return;
+    const { width, height } = page.getSize();
+    for (const box of boxes) {
+      const w = Math.max(8, box.w * width), h = Math.max(8, box.h * height);
+      const pngBytes = await renderPdfTextBoxImage(box, w, h); if (!pngBytes) continue;
+      const image = await outDoc.embedPng(pngBytes);
+      page.drawImage(image, { x: box.x * width, y: height - ((box.y * height) + h), width:w, height:h });
+    }
+  }
+  async function exportPdfOriginal(id) {
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    await flushPdfWorkshop(true);
+    const d = normalizePdfData(n.data || {});
+    if (!d.pages.length) {
+      const rec = await pdfRecord(n);
+      if (!rec) { toast("내보낼 PDF가 없어요"); return; }
+      const name = pdfAttachment(n)?.name || rec.name || `${pdfFileBaseName(n.title)}.pdf`;
+      downloadBlob(rec.blob, /\.pdf$/i.test(name) ? name : `${name}.pdf`); toast("원본 PDF를 내보냈어요"); return;
+    }
+    try {
+      const lib = await ensurePdfLib(), outDoc = await lib.PDFDocument.create(), sourceDocs = new Map();
+      for (const entry of d.pages) {
+        let page = null;
+        if (entry.kind === "blank") page = outDoc.addPage([entry.width || 595, entry.height || 842]);
+        else {
+          const attachment = pdfAttachmentById(d, entry.attachmentId), rec = await pdfRecordByAttachment(attachment);
+          if (!rec || !rec.blob) continue;
+          if (!sourceDocs.has(attachment.id)) sourceDocs.set(attachment.id, await lib.PDFDocument.load(await rec.blob.arrayBuffer(), { ignoreEncryption:true }));
+          const srcDoc = sourceDocs.get(attachment.id), pageIndex = Math.max(0, Math.min(srcDoc.getPageCount() - 1, (entry.sourcePage || 1) - 1));
+          const copied = await outDoc.copyPages(srcDoc, [pageIndex]); page = outDoc.addPage(copied[0]);
+        }
+        if (!page) continue;
+        if (entry.rotation) page.setRotation(lib.degrees(entry.rotation));
+        await drawPdfTextBoxes(outDoc, page, entry);
+      }
+      if (!outDoc.getPageCount()) { toast("내보낼 페이지가 없어요"); return; }
+      const bytes = await outDoc.save();
+      downloadBlob(new Blob([bytes], { type:"application/pdf" }), `${pdfFileBaseName(n.title || "pdf-workshop")}-edited.pdf`);
+      toast("편집한 PDF를 내보냈어요");
+    } catch (e) { console.warn("pdf export", e); toast("편집 PDF 내보내기에 실패했어요"); }
+  }
+  async function exportPdfPagePng(id) {
+    const n = getNote(id); if (!n || n.type !== "pdf") return;
+    await flushPdfWorkshop(true);
+    if ($("pdfCanvasShell").hidden) await renderPdfPage(id);
+    const canvas = $("pdfCanvas");
+    if (!canvas || !canvas.width || !canvas.height || $("pdfCanvasShell").hidden) { toast("PNG 변환 도구를 불러오지 못했어요"); return; }
+    const d = normalizePdfData(n.data || {}), entry = d.pages[(d.currentPage || 1) - 1], temp = document.createElement("canvas");
+    temp.width = canvas.width; temp.height = canvas.height;
+    const ctx = temp.getContext("2d"); ctx.drawImage(canvas, 0, 0);
+    if (entry && Array.isArray(entry.textBoxes)) {
+      const cssW = parseFloat(canvas.style.width) || canvas.width, cssH = parseFloat(canvas.style.height) || canvas.height, scale = canvas.width / Math.max(1, cssW);
+      for (const box of entry.textBoxes) {
+        if (!String(box.text || "").trim()) continue;
+        const png = await renderPdfTextBoxImage(box, box.w * cssW, box.h * cssH); if (!png) continue;
+        const image = await createImageBitmap(new Blob([png], { type:"image/png" }));
+        ctx.drawImage(image, box.x * canvas.width, box.y * canvas.height, box.w * cssW * scale, box.h * cssH * scale);
+      }
+    }
+    temp.toBlob((blob) => {
+      if (!blob) { toast("이미지 변환에 실패했어요"); return; }
+      downloadBlob(blob, `${pdfFileBaseName(n.title || pdfAttachment(n)?.name)}-p${String(d.currentPage || 1).padStart(3, "0")}.png`);
+      toast("현재 페이지를 PNG로 저장했어요");
+    }, "image/png");
+  }
+  function openPdfSheet(n) {
+    openSheet(n.title, [
+      { icon: IC.pin, label: n.pinned ? "고정 해제" : "상단 고정", fn: () => togglePinNote(n.id) },
+      { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("PDF 작업실 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
+      { icon: IC.color, label: "색상 지정", fn: () => showChipPicker(n.id) },
+      { icon: IC.save, label: "편집 PDF 내보내기", fn: () => void exportPdfOriginal(n.id) },
+      { icon: IC.export, label: "현재 페이지 PNG 저장", fn: () => void exportPdfPagePng(n.id) },
+      { icon: IC.move, label: "다른 프로젝트로 이동", fn: () => pickTargetProject(n.projectId, (pid) => moveNote(n.id, pid).then(render)) },
+      { icon: IC.copy, label: "선택 위치로 복제", fn: () => pickTargetProject(n.projectId, (pid) => duplicateNote(n.id, pid).then(render)) },
+      { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("PDF 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
+    ]);
+  }
+  function openPdfFile(file) {
+    if (!file) return;
+    if (!isPdfFile(file)) { toast("PDF 파일만 열 수 있어요"); return; }
+    pickTargetProject(st.curProjectId, async (pid) => { const n = await createNote("pdf", pid); st.curNoteId = n.id; st.curProjectId = pid; await replacePdfFile(file); go({ s:"pdf" }); });
   }
 
   /* ---------- Regex workshop: SillyTavern findRegex / replaceString lab ---------- */
@@ -9021,6 +9546,16 @@ ${gallery}
           else note.data.canvas.backgroundImage=null;
         }
       }
+      if (note.type === "pdf" && Array.isArray(note.data.pages)) {
+        note.data.pages = note.data.pages.map((page) => {
+          if (!page || page.kind === "blank") return page;
+          const id = fileIdMap.get(page.attachmentId);
+          return id ? Object.assign({}, page, { attachmentId: id }) : null;
+        }).filter(Boolean);
+        note.data.selectedPages = [];
+        note.data.pageCount = note.data.pages.length;
+        note.data.currentPage = Math.max(1, Math.min(note.data.pageCount || 1, Number(note.data.currentPage) || 1));
+      }
     }
     return { project, notes, files };
   }
@@ -9811,7 +10346,16 @@ ${gallery}
       if (input) input.value = "";
       if (f) void replacePdfFile(f);
     });
+    $on("pdfAddInput", "change", (e) => {
+      const input = e.target;
+      const files = input && input.files ? Array.from(input.files) : [];
+      if (input) input.value = "";
+      if (files.length) void appendPdfFiles(files);
+    });
     ["pdfPickFile", "pdfPickFirst", "pdfPanelReplace"].forEach((id) => $on(id, "click", () => $("pdfInput").click()));
+    ["pdfMergeFile", "pdfPanelMerge"].forEach((id) => $on(id, "click", () => $("pdfAddInput").click()));
+    ["pdfBlankPage", "pdfPanelBlank"].forEach((id) => $on(id, "click", () => addBlankPdfPage()));
+    ["pdfAddText", "pdfPanelAddText"].forEach((id) => $on(id, "click", () => addPdfTextBox()));
     ["pdfFileName", "pdfMemo"].forEach((id) => {
       $on(id, "input", () => schedulePdfSave());
       $on(id, "blur", () => void flushPdfWorkshop(false));
@@ -9834,6 +10378,53 @@ ${gallery}
     $on("pdfRotateRight", "click", () => rotatePdf(90));
     $on("pdfZoom", "input", (e) => setPdfZoom(e.target.value));
     $on("pdfReload", "click", () => { const n = getNote(st.curNoteId); if (n && n.type === "pdf") void renderPdfPage(n.id); });
+    $on("pdfEditToggle", "click", () => {
+      const n = getNote(st.curNoteId), d = normalizePdfData(n && n.data);
+      setPdfEditMode(!d.editMode);
+    });
+    $on("pdfEditMode", "change", (e) => setPdfEditMode(!!e.target.checked));
+    $on("pdfSelectAll", "click", () => selectAllPdfPages());
+    $on("pdfClearSelection", "click", () => clearPdfSelection());
+    $on("pdfMovePagesUp", "click", () => movePdfSelectedPages(-1));
+    $on("pdfMovePagesDown", "click", () => movePdfSelectedPages(1));
+    $on("pdfDeletePages", "click", () => deletePdfSelectedPages());
+    (() => {
+      const list = $("pdfPageList");
+      if (!list) return;
+      list.addEventListener("click", (e) => {
+        const target = e.target;
+        const row = target && target.closest ? target.closest("[data-pdf-page-index]") : null;
+        if (!row) return;
+        const index = Number(row.dataset.pdfPageIndex);
+        if (target.matches && target.matches("input[type='checkbox']")) {
+          togglePdfPageSelection(index, target.checked);
+          return;
+        }
+        setPdfPage(index + 1);
+      });
+    })();
+    (() => {
+      const layer = $("pdfTextLayer");
+      if (!layer) return;
+      layer.addEventListener("pointerdown", beginPdfTextDrag);
+      layer.addEventListener("input", (e) => {
+        const target = e.target;
+        const area = target && target.closest ? target.closest(".pdf-textbox-edit") : null;
+        if (!area) return;
+        const box = area.closest(".pdf-textbox");
+        if (box) updatePdfTextBox(box.dataset.pdfTextId, { text: area.value }, false);
+      });
+      layer.addEventListener("click", (e) => {
+        const target = e.target;
+        const button = target && target.closest ? target.closest(".pdf-textbox-grip button") : null;
+        if (!button) return;
+        const box = button.closest(".pdf-textbox");
+        if (box) removePdfTextBox(box.dataset.pdfTextId);
+      });
+    })();
+    document.addEventListener("pointermove", movePdfTextDrag);
+    document.addEventListener("pointerup", endPdfTextDrag);
+    document.addEventListener("pointercancel", endPdfTextDrag);
 
     // regex workshop
     ["regexScriptName", "regexFind", "regexReplace", "regexTrimStrings", "regexMinDepth", "regexMaxDepth"].forEach((id) => {
