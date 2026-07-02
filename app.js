@@ -756,13 +756,46 @@
   ]);
   const DIARY_WIDGET_BY_TYPE = new Map(DIARY_WIDGETS.map((item) => [item.type, item]));
   const DIARY_WIDGET_SIZES = new Set(["small", "medium", "wide", "large"]);
-  const DIARY_DDAY_TEMPLATES = Object.freeze([
+  const DIARY_DDAY_TEMPLATE_LAYOUTS = new Set(["left-title", "center-title", "split"]);
+  const DIARY_DDAY_BASE_TEMPLATES = [
     { id: "theme", label: "테마", meta: "컬러 테마 연동" },
     { id: "glass", label: "글래스", meta: "부드러운 반투명" },
     { id: "paper", label: "페이퍼", meta: "가벼운 노트 질감" }
-  ]);
+  ];
+  function cleanDiaryCssValue(value) {
+    return typeof value === "string" ? value.replace(/[;"<>]/g, "").trim().slice(0, 800) : "";
+  }
+  function normalizeDiaryDdayTemplate(raw) {
+    const src = raw && typeof raw === "object" ? raw : {};
+    const id = /^[a-z0-9_-]{1,48}$/i.test(String(src.id || "")) ? String(src.id) : "";
+    if (!id) return null;
+    const label = cleanImportedText(String(src.label || id), 32).trim() || id;
+    const meta = cleanImportedText(String(src.meta || src.mood || "디데이 템플릿"), 90).trim() || "디데이 템플릿";
+    const layout = DIARY_DDAY_TEMPLATE_LAYOUTS.has(String(src.layout || "")) ? String(src.layout) : "left-title";
+    return {
+      id,
+      label,
+      meta,
+      layout,
+      background: cleanDiaryCssValue(src.background),
+      overlay: cleanDiaryCssValue(src.overlay),
+      textColor: cleanDiaryCssValue(src.textColor),
+      accentColor: cleanDiaryCssValue(src.accentColor),
+      border: cleanDiaryCssValue(src.border),
+      shadow: cleanDiaryCssValue(src.shadow)
+    };
+  }
+  const DIARY_DDAY_TEMPLATES = Object.freeze((() => {
+    const seen = new Set();
+    const source = DIARY_DDAY_BASE_TEMPLATES.concat(Array.isArray(window.__lucyInkDdayTemplates) ? window.__lucyInkDdayTemplates : []);
+    return source.map(normalizeDiaryDdayTemplate).filter((item) => {
+      if (!item || seen.has(item.id)) return false;
+      seen.add(item.id); return true;
+    });
+  })());
   const DIARY_DDAY_TEMPLATE_BY_ID = new Map(DIARY_DDAY_TEMPLATES.map((item) => [item.id, item]));
   let diaryDdayImageDraft = null;
+  let diaryThumbCropHandler = null;
   let diaryPomodoroInterval = null;
 
   function detectAppMode() {
@@ -832,14 +865,56 @@
     return text || fallback || "";
   }
   function normalizeDiaryThumbnail(value) {
-    return normalizeProjectIconSource(value, DEFAULT_ICON);
+    const src = value && typeof value === "object" ? value : { icon: value };
+    const libraryId = quickMenuLibraryIconId(src.iconLibraryId);
+    const frame = frameById(src.frame) ? src.frame : null;
+    return {
+      icon: libraryId ? null : normalizeProjectIconSource(src.icon, DEFAULT_ICON),
+      iconLibraryId: libraryId,
+      frame,
+      frameColor: frame ? (normalizeFrameColor(src.frameColor) || "#d4af37") : null
+    };
   }
   function normalizeDiaryBannerImage(value) {
     const src = safeImageSource(value);
     return src || null;
   }
+  function diaryThumbMedia(thumb) {
+    const src = normalizeDiaryThumbnail(thumb);
+    if (src.iconLibraryId) return `<span class="thumb-media has-library-icon">${quickMenuLibraryIconMarkup(src.iconLibraryId, "project-library-icon diary-library-icon")}</span>`;
+    return `<span class="thumb-media"><img src="${esc(src.icon || DEFAULT_ICON)}" alt=""></span>`;
+  }
+  function diaryFrameInner(thumb) {
+    const src = normalizeDiaryThumbnail(thumb);
+    return src.frame ? frameSvgMarkup(src.frame, src.frameColor) : "";
+  }
+  function diaryThumbHTML(diary, cls) {
+    const thumb = normalizeDiaryThumbnail(diary && diary.thumbnail);
+    const framed = !!frameById(thumb.frame);
+    return `<span class="${cls || "diary-thumb"}${framed ? " has-frame" : ""}">${diaryThumbMedia(thumb)}${framed ? `<span class="frame">${diaryFrameInner(thumb)}</span>` : ""}</span>`;
+  }
   function diaryDdayTemplateId(value) {
     return DIARY_DDAY_TEMPLATE_BY_ID.has(String(value || "")) ? String(value) : "theme";
+  }
+  function diaryDdayTemplate(value) {
+    return DIARY_DDAY_TEMPLATE_BY_ID.get(diaryDdayTemplateId(value)) || DIARY_DDAY_TEMPLATE_BY_ID.get("theme");
+  }
+  function diaryDdayTemplateStyle(item) {
+    const tpl = diaryDdayTemplate(item && item.template);
+    const image = normalizeDiaryBannerImage(item && item.image);
+    const styles = [];
+    const add = (name, value) => { if (value) styles.push(`${name}:${value}`); };
+    if (tpl.background) add("background", tpl.background);
+    if (image) add("background-image", `${tpl.overlay || "linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08))"}, url('${image}')`);
+    add("color", tpl.textColor);
+    add("--diary-dday-accent", tpl.accentColor);
+    add("border", tpl.border);
+    add("box-shadow", tpl.shadow);
+    return styles.join(";");
+  }
+  function diaryDdayTemplateClass(item) {
+    const tpl = diaryDdayTemplate(item && item.template);
+    return `template-${tpl.id} layout-${tpl.layout || "left-title"}`;
   }
   function defaultDiaryLayout() {
     return {
@@ -865,7 +940,7 @@
       id: uid(),
       name: name || "기본 다이어리",
       description: "오늘의 일정과 기록",
-      thumbnail: DEFAULT_ICON,
+      thumbnail: normalizeDiaryThumbnail(DEFAULT_ICON),
       createdAt: t,
       updatedAt: t,
       dDays: [{ id: uid(), title: "루시잉크 다이어리", targetDate: todayISO(30), template: "theme", image: null, createdAt: t }],
@@ -1014,18 +1089,13 @@
     const cfg = diaryConfig(), diary = currentDiary();
     return `${diary.name} · 세트 ${cfg.diaries.length}개`;
   }
-  function diaryThumbHTML(diary, cls) {
-    const src = normalizeDiaryThumbnail(diary && diary.thumbnail);
-    return `<span class="${cls || "diary-thumb"}"><span class="thumb-media"><img src="${esc(src)}" alt=""></span></span>`;
-  }
   function diaryDdayCountText(item) {
     const diff = dateDiffDays(item.targetDate);
     if (diff === 0) return "D-Day";
     return diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
   }
   function diaryDdayBannerStyle(item) {
-    if (item && item.image) return `background-image:linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08)), url('${item.image}')`;
-    return "";
+    return diaryDdayTemplateStyle(item);
   }
   function diarySchedulesFor(diary, iso) {
     return (diary.schedules || []).filter((item) => item.date === iso).sort((a, b) => (a.start || "").localeCompare(b.start || ""));
@@ -1044,7 +1114,7 @@
     if (!items.length) return '<div class="diary-empty">등록된 디데이가 없어요.</div>';
     return `<div class="diary-dday-list">${items.map((item) => {
       const template = diaryDdayTemplateId(item.template);
-      return `<button type="button" class="diary-dday-card template-${template}${item.image ? " has-image" : ""}" data-dday-edit="${esc(item.id)}" style="${esc(diaryDdayBannerStyle(item))}"><span><b>${esc(diaryDdayCountText(item))}</b><small>${esc(item.title)}</small></span><i>${esc(diaryDateLabel(item.targetDate))}</i></button>`;
+      return `<button type="button" class="diary-dday-card ${diaryDdayTemplateClass(item)}${item.image ? " has-image" : ""}" data-dday-edit="${esc(item.id)}" style="${esc(diaryDdayBannerStyle(item))}"><span><b>${esc(diaryDdayCountText(item))}</b><small>${esc(item.title)}</small></span><i>${esc(diaryDateLabel(item.targetDate))}</i></button>`;
     }).join("")}</div>`;
   }
   function renderDiaryCalendarBody(diary) {
@@ -1205,22 +1275,87 @@
   }
   function openDiarySetForm(id) {
     const cfg = diaryConfig(), diary = id ? diaryById(id) : null;
-    const currentThumb = normalizeDiaryThumbnail(diary && diary.thumbnail);
+    const thumbDraft = normalizeDiaryThumbnail(diary && diary.thumbnail);
+    let activeThumbTab = "images", activeIconCat = "all";
+    const thumbPreview = () => diaryThumbHTML({ thumbnail: thumbDraft }, "diary-thumb-edit-preview");
+    const drawPreview = () => { const box = $("diaryThumbPreview"); if (box) box.innerHTML = thumbPreview(); };
+    const frameColor = () => normalizeFrameColor(thumbDraft.frameColor) || "#d4af37";
+    const drawFrameGrid = () => {
+      const grid = $("diaryFrameGrid"); if (!grid) return;
+      const color = frameColor();
+      const none = `<button type="button" class="frame-opt${thumbDraft.frame ? "" : " sel"}" data-diary-frame=""><span class="diary-set-thumb fr-prev">${diaryThumbMedia(thumbDraft)}</span><span>없음</span></button>`;
+      const frames = FRAMES.map((f) => `<button type="button" class="frame-opt${thumbDraft.frame === f.id ? " sel" : ""}" data-diary-frame="${esc(f.id)}"><span class="diary-set-thumb fr-prev has-frame">${diaryThumbMedia(thumbDraft)}<span class="frame">${frameSvgMarkup(f.id, color)}</span></span><span>${esc(f.name)}</span></button>`).join("");
+      grid.innerHTML = none + frames;
+      grid.querySelectorAll("[data-diary-frame]").forEach((button) => button.addEventListener("click", () => {
+        const fid = button.dataset.diaryFrame;
+        thumbDraft.frame = frameById(fid) ? fid : null;
+        thumbDraft.frameColor = thumbDraft.frame ? (thumbDraft.frameColor || "#d4af37") : null;
+        drawPreview(); drawFrameGrid(); drawFrameColors();
+      }));
+    };
+    const drawFrameColors = () => {
+      const grid = $("diaryFrameColorGrid"); if (!grid) return;
+      const themeAccent = resolveFrameColor(FRAME_THEME_TOKEN);
+      const colors = FRAME_COLORS.concat([[FRAME_THEME_TOKEN, "테마와 연동", themeAccent]]);
+      const selected = frameColor();
+      grid.innerHTML = colors.map(([key, name, value]) => {
+        const previewColor = key === FRAME_THEME_TOKEN ? themeAccent : value;
+        const isGlass = key === "glass";
+        const isPunch = key === FRAME_PUNCH_TOKEN;
+        const isSel = thumbDraft.frameColor === FRAME_THEME_TOKEN ? key === FRAME_THEME_TOKEN : thumbDraft.frameColor === FRAME_PUNCH_TOKEN ? key === FRAME_PUNCH_TOKEN : selected === String(value).toLowerCase();
+        const punchStyle = 'background:linear-gradient(135deg, rgba(255,255,255,.68), rgba(255,255,255,.15)); box-shadow: inset 0 0 0 1px rgba(255,255,255,.85), inset 0 0 0 6px rgba(255,255,255,.14), 0 0 0 1px rgba(87,106,146,.32);';
+        return `<button type="button" class="fcolor-sw${isGlass ? " glass" : ""}${isPunch ? " punch" : ""}${isSel ? " sel" : ""}" data-diary-frame-color="${esc(key)}" title="${esc(name)}" aria-label="${esc(name)}"><span${isGlass ? "" : isPunch ? ` style="${punchStyle}"` : ` style="background:${previewColor}"`}></span></button>`;
+      }).join("");
+      grid.querySelectorAll("[data-diary-frame-color]").forEach((button) => button.addEventListener("click", () => {
+        if (!thumbDraft.frame) { toast("프레임을 먼저 골라주세요"); return; }
+        const key = button.dataset.diaryFrameColor;
+        thumbDraft.frameColor = key === FRAME_THEME_TOKEN ? FRAME_THEME_TOKEN : (key === FRAME_PUNCH_TOKEN ? FRAME_PUNCH_TOKEN : (FRAME_COLOR_BY_KEY.get(key) || "#d4af37"));
+        drawPreview(); drawFrameGrid(); drawFrameColors();
+      }));
+    };
+    const drawThumbPicker = () => {
+      const box = $("diaryThumbPicker"); if (!box) return;
+      $("modalBox").querySelectorAll("[data-diary-thumb-tab]").forEach((button) => button.classList.toggle("is-active", button.dataset.diaryThumbTab === activeThumbTab));
+      if (activeThumbTab === "images") {
+        const grid = ICONS.map((ic) => `<button type="button" class="icon-opt${!thumbDraft.iconLibraryId && thumbDraft.icon === ic.data ? " sel" : ""}" data-diary-thumb-image="${esc(ic.id)}"><img src="${esc(ic.data)}" alt="${esc(ic.name)}"></button>`).join("");
+        box.innerHTML = `<div class="diary-thumb-grid">${grid}<button type="button" class="icon-opt upload" id="diaryThumbUpload"><svg viewBox="0 0 24 24"><path d="M12 16V5M7 10l5-5 5 5"/><path d="M5 16v3h14v-3"/></svg><span>업로드</span></button></div>`;
+        box.querySelectorAll("[data-diary-thumb-image]").forEach((button) => button.addEventListener("click", () => {
+          const picked = ICONS.find((item) => item.id === button.dataset.diaryThumbImage); if (!picked) return;
+          thumbDraft.icon = picked.data; thumbDraft.iconLibraryId = null; drawPreview(); drawThumbPicker(); drawFrameGrid();
+        }));
+        $on("diaryThumbUpload", "click", () => {
+          diaryThumbCropHandler = (data) => { thumbDraft.icon = data; thumbDraft.iconLibraryId = null; drawPreview(); drawThumbPicker(); drawFrameGrid(); toast("썸네일 이미지를 적용했어요"); };
+          $("diaryThumbInput").click();
+        });
+        return;
+      }
+      const cats = QUICK_MENU_ICON_CATEGORIES.map(([key, label]) => `<button type="button" class="project-icon-cat ${key === activeIconCat ? "is-active" : ""}" data-diary-icon-cat="${esc(key)}">${esc(label)}</button>`).join("");
+      const items = QUICK_MENU_ICON_LIBRARY.filter((item) => activeIconCat === "all" || item.category === activeIconCat);
+      box.innerHTML = `<div class="project-icon-cats">${cats}</div><div class="project-icon-library-grid">${items.map((item) => quickMenuIconCardMarkup(item, thumbDraft.iconLibraryId === item.id && !thumbDraft.icon, "project")).join("")}</div>`;
+      box.querySelectorAll("[data-diary-icon-cat]").forEach((button) => button.addEventListener("click", () => { activeIconCat = button.dataset.diaryIconCat; drawThumbPicker(); }));
+      box.querySelectorAll("[data-project-library-icon]").forEach((button) => button.addEventListener("click", () => {
+        const picked = quickMenuLibraryIconId(button.dataset.projectLibraryIcon); if (!picked) return;
+        thumbDraft.icon = null; thumbDraft.iconLibraryId = picked; drawPreview(); drawThumbPicker(); drawFrameGrid();
+      }));
+    };
     openModal(`<h3>${diary ? "다이어리 편집" : "새 다이어리"}</h3>
       <div class="m-field-label">이름</div><input class="m-input" id="diarySetName" maxlength="80" value="${esc(diary ? diary.name : "")}" placeholder="다이어리 이름">
       <div class="m-field-label">설명</div><input class="m-input" id="diarySetDesc" maxlength="160" value="${esc(diary ? diary.description : "")}" placeholder="짧은 설명">
-      <input type="hidden" id="diarySetThumb" value="${esc(currentThumb)}">
-      <div class="diary-thumb-grid">${ICONS.map((item) => `<button type="button" class="icon-opt${currentThumb === item.data ? " sel" : ""}" data-diary-thumb="${esc(item.data)}"><img src="${esc(item.data)}" alt="${esc(item.name)}"></button>`).join("")}</div>
+      <div class="m-field-label">썸네일</div>
+      <div class="diary-thumb-edit-head" id="diaryThumbPreview">${thumbPreview()}</div>
+      <div class="project-icon-tabs"><button type="button" class="project-icon-tab is-active" data-diary-thumb-tab="images">이미지</button><button type="button" class="project-icon-tab" data-diary-thumb-tab="library">아이콘 <span>${QUICK_MENU_ICON_LIBRARY.length}</span></button></div>
+      <div id="diaryThumbPicker"></div>
+      <div class="m-field-label">썸네일 프레임</div>
+      <div class="frame-grid diary-frame-grid" id="diaryFrameGrid"></div>
+      <div class="fcolor-grid diary-frame-color-grid" id="diaryFrameColorGrid"></div>
       <div class="m-row"><button class="m-btn" id="diarySetCancel">취소</button><button class="m-btn primary" id="diarySetSave">${diary ? "저장" : "만들기"}</button></div>`);
-    $("modalBox").querySelectorAll("[data-diary-thumb]").forEach((button) => button.addEventListener("click", () => {
-      $("diarySetThumb").value = button.dataset.diaryThumb;
-      $("modalBox").querySelectorAll("[data-diary-thumb]").forEach((item) => item.classList.toggle("sel", item === button));
-    }));
+    $("modalBox").querySelectorAll("[data-diary-thumb-tab]").forEach((button) => button.addEventListener("click", () => { activeThumbTab = button.dataset.diaryThumbTab === "library" ? "library" : "images"; drawThumbPicker(); }));
+    drawThumbPicker(); drawFrameGrid(); drawFrameColors();
     $on("diarySetCancel", "click", () => diary ? openDiaryManager() : closeModal);
     $on("diarySetSave", "click", async () => {
       const name = diarySafeText($("diarySetName").value, 80, "새 다이어리"), desc = diarySafeText($("diarySetDesc").value, 160, "오늘의 일정과 기록");
-      if (diary) { diary.name = name; diary.description = desc; diary.thumbnail = normalizeDiaryThumbnail($("diarySetThumb").value); diary.updatedAt = now(); }
-      else { const fresh = makeDefaultDiary(name); fresh.description = desc; fresh.thumbnail = normalizeDiaryThumbnail($("diarySetThumb").value); cfg.diaries.push(fresh); cfg.activeId = fresh.id; }
+      if (diary) { diary.name = name; diary.description = desc; diary.thumbnail = normalizeDiaryThumbnail(thumbDraft); diary.updatedAt = now(); }
+      else { const fresh = makeDefaultDiary(name); fresh.description = desc; fresh.thumbnail = normalizeDiaryThumbnail(thumbDraft); cfg.diaries.push(fresh); cfg.activeId = fresh.id; }
       await persistDiary({ silent: true }); openDiaryManager(); render(); renderSidebar();
     });
   }
@@ -1242,17 +1377,17 @@
       <div class="m-field-label">이름</div><input class="m-input" id="diaryDdayTitle" maxlength="80" value="${esc(item ? item.title : "")}" placeholder="예: 원고 마감">
       <div class="m-field-label">날짜</div><input class="m-input" id="diaryDdayDate" type="date" value="${esc(item ? item.targetDate : todayISO(30))}">
       <input type="hidden" id="diaryDdayTemplate" value="${esc(template)}">
-      <div class="diary-template-grid">${DIARY_DDAY_TEMPLATES.map((tpl) => `<button type="button" class="diary-template-card template-${tpl.id}${tpl.id === template ? " sel" : ""}" data-dday-template="${tpl.id}"><b>${esc(tpl.label)}</b><small>${esc(tpl.meta)}</small></button>`).join("")}</div>
-      <div class="diary-banner-preview template-${esc(template)}${diaryDdayImageDraft ? " has-image" : ""}" id="diaryDdayPreview" style="${esc(diaryDdayImageDraft ? `background-image:linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08)), url('${diaryDdayImageDraft}')` : "")}"><span>Banner</span></div>
+      <div class="diary-template-grid">${DIARY_DDAY_TEMPLATES.map((tpl) => `<button type="button" class="diary-template-card ${diaryDdayTemplateClass({ template: tpl.id })}${tpl.id === template ? " sel" : ""}" data-dday-template="${tpl.id}" style="${esc(diaryDdayTemplateStyle({ template: tpl.id }))}"><b>${esc(tpl.label)}</b><small>${esc(tpl.meta)}</small></button>`).join("")}</div>
+      <div class="diary-banner-preview ${diaryDdayTemplateClass({ template })}${diaryDdayImageDraft ? " has-image" : ""}" id="diaryDdayPreview" style="${esc(diaryDdayTemplateStyle({ template, image: diaryDdayImageDraft }))}"><span>Banner</span></div>
       <div class="m-row"><button class="m-btn" id="diaryDdayImage">이미지</button><button class="m-btn" id="diaryDdayImageClear">이미지 제거</button>${item ? '<button class="m-btn danger" id="diaryDdayDelete">삭제</button>' : ""}</div>
       <div class="m-row"><button class="m-btn" id="diaryDdayCancel">취소</button><button class="m-btn primary" id="diaryDdaySave">저장</button></div>`);
     $("modalBox").querySelectorAll("[data-dday-template]").forEach((button) => button.addEventListener("click", () => {
       $("diaryDdayTemplate").value = button.dataset.ddayTemplate;
       $("modalBox").querySelectorAll("[data-dday-template]").forEach((item) => item.classList.toggle("sel", item === button));
-      const prev = $("diaryDdayPreview"); if (prev) { DIARY_DDAY_TEMPLATES.forEach((tpl) => prev.classList.remove("template-" + tpl.id)); prev.classList.add("template-" + button.dataset.ddayTemplate); }
+      const prev = $("diaryDdayPreview"); if (prev) { prev.className = `diary-banner-preview ${diaryDdayTemplateClass({ template: button.dataset.ddayTemplate })}${diaryDdayImageDraft ? " has-image" : ""}`; prev.setAttribute("style", diaryDdayTemplateStyle({ template: button.dataset.ddayTemplate, image: diaryDdayImageDraft })); }
     }));
     $on("diaryDdayImage", "click", () => $("diaryBannerInput").click());
-    $on("diaryDdayImageClear", "click", () => { diaryDdayImageDraft = null; const prev = $("diaryDdayPreview"); if (prev) { prev.classList.remove("has-image"); prev.removeAttribute("style"); } });
+    $on("diaryDdayImageClear", "click", () => { diaryDdayImageDraft = null; const prev = $("diaryDdayPreview"); const tpl = $("diaryDdayTemplate").value; if (prev) { prev.className = `diary-banner-preview ${diaryDdayTemplateClass({ template: tpl })}`; prev.setAttribute("style", diaryDdayTemplateStyle({ template: tpl })); } });
     if (item) $on("diaryDdayDelete", "click", () => confirmModal("디데이 삭제", `'${item.title}' 항목을 삭제할까요?`, "삭제", true, async () => { diary.dDays = diary.dDays.filter((row) => row.id !== item.id); diary.updatedAt = now(); await persistDiary(); closeModal(); }));
     $on("diaryDdayCancel", "click", closeModal);
     $on("diaryDdaySave", "click", async () => {
@@ -1283,9 +1418,20 @@
       diary.updatedAt = now(); await persistDiary(); closeModal();
     });
   }
-  function openDiaryScheduleForm(id, date) {
-    const diary = currentDiary(), item = id ? diary.schedules.find((row) => row.id === id) : null;
+  function openDiaryScheduleSetPicker(date) {
+    const cfg = diaryConfig();
+    const list = cfg.diaries.map((diary) => `<button type="button" class="diary-schedule-set-choice${diary.id === cfg.activeId ? " active" : ""}" data-diary-schedule-set="${esc(diary.id)}">${diaryThumbHTML(diary, "diary-set-thumb")}<span><b>${esc(diary.name)}</b><small>${esc(diary.description || "다이어리")}</small></span></button>`).join("");
+    openModal(`<h3>일정 다이어리 선택</h3><p class="m-sub">새 일정을 저장할 다이어리세트를 먼저 고릅니다.</p><div class="diary-schedule-set-list">${list}</div><div class="m-row"><button class="m-btn" id="diaryScheduleSetCancel">취소</button></div>`);
+    $("modalBox").querySelectorAll("[data-diary-schedule-set]").forEach((button) => button.addEventListener("click", () => {
+      const picked = diaryById(button.dataset.diaryScheduleSet); if (!picked) return;
+      openDiaryScheduleForm(null, date, picked.id);
+    }));
+    $on("diaryScheduleSetCancel", "click", closeModal);
+  }
+  function openDiaryScheduleForm(id, date, diaryId) {
+    const diary = diaryId ? (diaryById(diaryId) || currentDiary()) : currentDiary(), item = id ? diary.schedules.find((row) => row.id === id) : null;
     openModal(`<h3>${item ? "일정 편집" : "새 일정"}</h3>
+      <p class="m-sub">${esc(diary.name)}</p>
       <div class="m-field-label">내용</div><input class="m-input" id="diaryScheduleTitle" maxlength="120" value="${esc(item ? item.title : "")}" placeholder="일정">
       <div class="m-field-label">날짜</div><input class="m-input" id="diaryScheduleDate" type="date" value="${esc(item ? item.date : (date || todayISO()))}">
       <div class="m-field-label">시간</div><div class="diary-date-pair"><input class="m-input" id="diaryScheduleStart" type="time" value="${esc(item ? item.start : "09:00")}"><input class="m-input" id="diaryScheduleEnd" type="time" value="${esc(item ? item.end : "10:00")}"></div>
@@ -7200,6 +7346,15 @@
       const p = getProject(pid); if (p) { p.icon = data; p.iconLibraryId = null; await saveProject(p); closeModal(); render(); renderSidebar(); toast("썸네일을 변경했어요"); }
     });
   });
+  $on("diaryThumbInput", "change", (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    const handler = diaryThumbCropHandler;
+    if (!f || !handler) return;
+    startCrop(f, 1, 512, 512, (data) => {
+      diaryThumbCropHandler = null;
+      handler(data);
+    });
+  });
 
   /* ---------- search ---------- */
   function getNoteSearchText(n) {
@@ -9218,18 +9373,20 @@ ${gallery}
     $on("edBack", "click", () => { void back(); });
     $on("edMore", "click", () => openNoteSheet(st.curNoteId));
     $on("sbNewProject", "click", () => { closeSidebar(); if (isDiaryMode()) openDiarySetForm(null); else showProjectForm(null, () => { render(); renderSidebar(); }); });
-    $on("sbNewMemo", "click", () => { closeSidebar(); if (isDiaryMode()) openDiaryScheduleForm(null); else showTypePicker(null); });
+    $on("sbNewMemo", "click", () => { closeSidebar(); if (isDiaryMode()) openDiaryScheduleSetPicker(); else showTypePicker(null); });
     $on("sbSettings", "click", () => { closeSidebar(); go({ s: "settings" }); });
     $on("diaryBannerInput", "change", async (event) => {
       const file = event.target.files && event.target.files[0]; event.target.value = "";
       if (!file) return;
       try {
-        diaryDdayImageDraft = await fileToResized(file, 1400);
-        const prev = $("diaryDdayPreview");
-        if (prev) {
-          prev.classList.add("has-image");
-          prev.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,.42), rgba(0,0,0,.08)), url('${diaryDdayImageDraft}')`;
-        }
+        startCrop(file, 16 / 9, 1400, 788, (data) => {
+          diaryDdayImageDraft = data;
+          const prev = $("diaryDdayPreview"), tpl = $("diaryDdayTemplate") ? $("diaryDdayTemplate").value : "theme";
+          if (prev) {
+            prev.className = `diary-banner-preview ${diaryDdayTemplateClass({ template: tpl })} has-image`;
+            prev.setAttribute("style", diaryDdayTemplateStyle({ template: tpl, image: diaryDdayImageDraft }));
+          }
+        });
       } catch (e) { toast((e && e.message) || "이미지를 읽지 못했어요"); }
     });
     $on("edSave", "click", async () => { await flushSave(true); toast("저장했어요"); });
