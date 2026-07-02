@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 /* ============================================================
    루시잉크 (Lumink) — app logic (1차)
    ============================================================ */
@@ -202,7 +202,7 @@
   function quickMenuFunctionId(value) { return QUICK_MENU_FUNCTION_BY_ID.has(String(value || "")) ? String(value) : "home"; }
   function quickMenuFunction(value) { return QUICK_MENU_FUNCTION_BY_ID.get(quickMenuFunctionId(value)) || QUICK_MENU_FUNCTION_BY_ID.get("home"); }
   function emptyQuickMenuSlot(index) {
-    return { slotId: index + 1, kind: null, label: "", thumbnail: null, iconCode: null, libraryIconId: null, functionId: null, targetId: null, createType: null, createMode: "single", createProjectId: null };
+    return { slotId: index + 1, kind: null, label: "", thumbnail: null, iconCode: null, libraryIconId: null, functionId: null, targetId: null, createType: null, createMode: "single", characterVariant: "lumi", createProjectId: null };
   }
   function quickMenuSlotCount(value) {
     const n = Math.round(Number(value));
@@ -239,6 +239,7 @@
         targetId: isSafeRecordId(item.targetId) ? item.targetId : null,
         createType: QUICK_MENU_ALLOWED_TYPES.has(item.createType) ? item.createType : "free",
         createMode: item.createMode === "collection" ? "collection" : "single",
+        characterVariant: item.characterVariant === "lucy" ? "lucy" : "lumi",
         createProjectId: isSafeRecordId(item.createProjectId) ? item.createProjectId : null
       };
       if ((kind === "project" || kind === "note") && !slot.targetId) { slots.push(base); continue; }
@@ -2020,7 +2021,7 @@
       const proj = getProject(n.projectId);
       const it = document.createElement("div"); it.className = "hm-recent-item";
       it.innerHTML = memoTagHTML(n) +
-        `<div class="hm-body"><div class="hm-title">${esc(n.title || "(제목 없음)")}${n.pinnedHome ? PIN_STAR : ""}</div><div class="hm-sub">${esc(proj ? proj.name : "")} · ${TYPE_LABEL[n.type] || ""} · ${fmtDate(n.updatedAt)}</div></div>` +
+        `<div class="hm-body"><div class="hm-title">${esc(n.title || "(제목 없음)")}${n.pinnedHome ? PIN_STAR : ""}</div><div class="hm-sub">${esc(proj ? proj.name : "")} · ${noteTypeLabel(n)} · ${fmtDate(n.updatedAt)}</div></div>` +
         `<div class="hm-more" aria-label="메모 메뉴">${homeMoreIcon("recent-" + n.id)}</div>`;
       it.addEventListener("click", (e) => { if (e.target.closest(".hm-more")) { e.stopPropagation(); openRecentSheet(n, "home"); return; } openNote(n.id); });
       attachLongPress(it, () => openRecentSheet(n, "home"));
@@ -7805,7 +7806,7 @@
     try {
       const files = await getAll("files"); const fileRecs = [];
       for (const f of files) { try { fileRecs.push({ id: f.id, noteId: f.noteId, name: f.name, type: f.type, size: f.size, createdAt: f.createdAt, data: await blobToBase64(f.blob) }); } catch (e) {} }
-      const payload = { app: "lumink", version: 4, exportedAt: now(), projects: st.projects, notes: st.notes, files: fileRecs, quickMenu: jsonCopy(quickMenuConfig()), diary: jsonCopy(diaryConfig()), appearance: appearanceSnapshot() };
+      const payload = { app: "lumink", version: 4, exportedAt: now(), projects: st.projects, notes: st.notes, files: fileRecs, quickMenu: jsonCopy(quickMenuConfig("memo")), diaryQuickMenu: jsonCopy(quickMenuConfig("diary")), diary: jsonCopy(diaryConfig()), appearance: appearanceSnapshot() };
       const json = JSON.stringify(payload).replace(/</g, "\\u003c");
       const summary = st.projects.map((p) => {
         const ns = st.notes.filter((n) => n.projectId === p.id);
@@ -8042,7 +8043,8 @@
       try {
         await doAutoBackup();
         await applyImportData(payload.projects || [], payload.notes || [], payload.files || [], false);
-        await restoreQuickMenuConfig(payload.quickMenu);
+        await restoreQuickMenuConfig(payload.quickMenu, "memo");
+        await restoreQuickMenuConfig(payload.diaryQuickMenu, "diary");
         await restoreDiaryConfig(payload.diary);
         await restoreAppearanceConfig(payload.appearance);
         await reloadState(); render(); renderSidebar(); toast("병합 복원했어요");
@@ -8052,7 +8054,8 @@
       try {
         await doAutoBackup();
         await replaceImportData(payload.projects || [], payload.notes || [], payload.files || []);
-        await restoreQuickMenuConfig(payload.quickMenu);
+        await restoreQuickMenuConfig(payload.quickMenu, "memo");
+        await restoreQuickMenuConfig(payload.diaryQuickMenu, "diary");
         await restoreDiaryConfig(payload.diary);
         await restoreAppearanceConfig(payload.appearance);
         await reloadState(); goHome(); renderSidebar(); toast("백업 시점으로 되돌렸어요");
@@ -9535,7 +9538,7 @@ ${gallery}
         id: "bk_" + autoBkLast, version: 4, ts: autoBkLast,
         projects: JSON.parse(JSON.stringify(st.projects)),
         notes: JSON.parse(JSON.stringify(st.notes)), files: snapFiles,
-        quickMenu: jsonCopy(quickMenuConfig()), diary: jsonCopy(diaryConfig()), appearance: appearanceSnapshot()
+        quickMenu: jsonCopy(quickMenuConfig("memo")), diaryQuickMenu: jsonCopy(quickMenuConfig("diary")), diary: jsonCopy(diaryConfig()), appearance: appearanceSnapshot()
       };
       await put("backups", snap);
       await pruneAutoBackups(getAutoBackupLimit());
@@ -9591,7 +9594,7 @@ ${gallery}
       document.querySelectorAll(".ab-restore").forEach((btn) => btn.addEventListener("click", () => {
         const snap = all.find((x) => x.id === btn.dataset.bk); if (!snap) return;
         const dt = new Date(snap.ts), label = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
-        openRestoreModePicker({ app: "lumink", projects: snap.projects, notes: snap.notes, files: snap.files || [], quickMenu: snap.quickMenu || null, diary: snap.diary || null, appearance: snap.appearance || null }, `${label} 자동 백업`);
+        openRestoreModePicker({ app: "lumink", projects: snap.projects, notes: snap.notes, files: snap.files || [], quickMenu: snap.quickMenu || null, diaryQuickMenu: snap.diaryQuickMenu || null, diary: snap.diary || null, appearance: snap.appearance || null }, `${label} 자동 백업`);
       }));
     }).catch(() => { toast("자동 백업 정보를 읽지 못했어요"); });
   }
@@ -9648,8 +9651,8 @@ ${gallery}
     $on("homeMenu", "click", openSidebar);
     $on("homeSettings", "click", () => go({ s: "settings" }));
     $on("quickMenuTab", "click", () => setQuickMenuOpen(!document.body.classList.contains("quick-menu-open")));
-    $on("quickMenuEdit", "click", () => { setQuickMenuOpen(false); openQuickMenuManager(); });
-    $on("quickMenuManage", "click", () => { setQuickMenuOpen(false); openQuickMenuManager(); });
+    $on("quickMenuEdit", "click", () => { quickMenuContextMode = lucyQuickCurrentMode(); setQuickMenuOpen(false); openQuickMenuManager(); });
+    $on("quickMenuManage", "click", () => { quickMenuContextMode = lucyQuickCurrentMode(); setQuickMenuOpen(false); openQuickMenuManager(); });
     bindQuickMenuInteractions();
     $on("quickMenuImageInput", "change", async (event) => {
       const file = event.target.files && event.target.files[0], index = quickMenuImageSlot; event.target.value = "";
@@ -9667,7 +9670,8 @@ ${gallery}
     $on("setAutoBackup", "click", openAutoBackupList);
     $on("setStorage", "click", () => { void openQuickMenuStorageInfo(); });
     $on("setAccent", "click", openAccentPicker);
-    $on("setQuickMenu", "click", openQuickMenuSettings);
+    $on("setQuickMenu", "click", () => openQuickMenuSettings("memo"));
+    $on("setDiaryQuickMenu", "click", () => openQuickMenuSettings("diary"));
     $on("setDiary", "click", openDiarySettings);
     $on("setToolbarMode", "click", openFormatbarModePicker);
     $on("setInstallIcon", "click", openInstallIconPicker);
@@ -12875,6 +12879,307 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
       {icon:IC.del,label:"아이디어 보드 삭제",danger:true,fn:()=>confirmModal("아이디어 보드 삭제",`'${n.title}'를 삭제할까요?`,"삭제",true,async()=>{await deleteNote(n.id);back();})}
     ];openSheet(n.title,items);
   }
+
+
+  /* ============================================================
+     v0.7 · memo/diary quick-menu split + Lucy character cards
+     Existing records remain readable: old character cards default to `lumi`.
+     ============================================================ */
+  const DIARY_QUICK_MENU_SETTING_ID = "diaryQuickMenu";
+  let quickMenuContextMode = "memo";
+
+  function lucyQuickMode(mode) {
+    return mode === "diary" || (!mode && quickMenuContextMode === "diary") ? "diary" : "memo";
+  }
+  function lucyQuickCurrentMode() { return isDiaryMode() ? "diary" : "memo"; }
+  function quickMenuConfig(mode) {
+    const key = lucyQuickMode(mode) === "diary" ? "diaryQuickMenu" : "quickMenu";
+    if (!st[key] || !Array.isArray(st[key].slots)) st[key] = normalizeQuickMenu(st[key]);
+    return st[key];
+  }
+  function quickMenuIsEnabled() { return quickMenuConfig(lucyQuickCurrentMode()).enabled !== false; }
+  function quickMenuSlotLimit(cfg) { return quickMenuSlotCount((cfg || quickMenuConfig()).slotCount); }
+  function quickMenuFilledCount(mode) { return quickMenuConfig(mode).slots.filter((slot) => !!slot.kind).length; }
+
+  const LUCY_DIARY_QUICK_FUNCTIONS = Object.freeze([
+    { id:"diary-quick-add", group:"다이어리 작성", label:"빠른 추가", meta:"디데이 · 투두 · 일정 중 바로 추가" },
+    { id:"diary-add-dday", group:"다이어리 작성", label:"디데이 추가", meta:"기념일과 남은 날짜 등록" },
+    { id:"diary-add-todo", group:"다이어리 작성", label:"투두 추가", meta:"오늘의 할 일 등록" },
+    { id:"diary-add-schedule", group:"다이어리 작성", label:"일정 추가", meta:"시간이 있는 일정 등록" },
+    { id:"diary-manage", group:"다이어리 관리", label:"다이어리 세트", meta:"대표 다이어리 선택·관리" },
+    { id:"diary-layout", group:"다이어리 관리", label:"메인 구성 편집", meta:"탭·위젯·순서 편집" },
+    { id:"diary-settings", group:"다이어리 관리", label:"다이어리 설정", meta:"다이어리 기본 환경 열기" },
+    { id:"switch-memo-mode", group:"모드 전환", label:"메모 모드로 전환", meta:"창작 메모와 프로젝트 화면으로 이동" }
+  ]);
+  const LUCY_MEMO_MODE_FUNCTION = { id:"switch-diary-mode", group:"모드 전환", label:"다이어리 모드 전환", meta:"일정·디데이·투두 화면으로 이동" };
+  LUCY_DIARY_QUICK_FUNCTIONS.forEach((item) => QUICK_MENU_FUNCTION_BY_ID.set(item.id, item));
+  QUICK_MENU_FUNCTION_BY_ID.set(LUCY_MEMO_MODE_FUNCTION.id, LUCY_MEMO_MODE_FUNCTION);
+
+  function lucyQuickMenuFunctions(mode) {
+    const base = QUICK_MENU_FUNCTIONS.filter((item) => !/^setting-(toolbar|quick-menu)$/.test(item.id));
+    if (lucyQuickMode(mode) === "diary") return base.concat(LUCY_DIARY_QUICK_FUNCTIONS);
+    return base.concat([LUCY_MEMO_MODE_FUNCTION]);
+  }
+  function quickMenuFunctionId(value) { return QUICK_MENU_FUNCTION_BY_ID.has(String(value || "")) ? String(value) : "home"; }
+  function quickMenuFunction(value) { return QUICK_MENU_FUNCTION_BY_ID.get(quickMenuFunctionId(value)) || QUICK_MENU_FUNCTION_BY_ID.get("home"); }
+  function quickMenuCreateTypeName(slot) {
+    const type = slot && slot.createType;
+    if (type === "persona") return slot.createMode === "collection" ? "다인 페르소나" : "페르소나";
+    if (type === "character") {
+      if (slot.characterVariant === "lucy") return slot.createMode === "collection" ? "다인 캐릭터" : "캐릭터";
+      return slot.createMode === "collection" ? "루미 다인 캐릭터" : "루미 캐릭터";
+    }
+    return ({free:"자유 메모",html:"코드 작업실",regex:"정규식 작업실",pdf:"PDF 작업실",lorebook:"로어북",log:"로그 저장",idea:"아이디어 보드"})[type] || "메모";
+  }
+  function quickMenuSlotLabel(slot) {
+    if (!slot || !slot.kind) return "빈 슬롯";
+    if (slot.label) return slot.label;
+    if (slot.kind === "function") return quickMenuFunction(slot.functionId).label;
+    if (slot.kind === "project") return getProject(slot.targetId)?.name || "프로젝트";
+    if (slot.kind === "note") return getNote(slot.targetId)?.title || "내 글";
+    return `${quickMenuCreateTypeName(slot)} 만들기`;
+  }
+  function quickMenuSlotMeta(slot) {
+    if (!slot || !slot.kind) return "동작을 등록하세요";
+    if (slot.kind === "function") return quickMenuFunction(slot.functionId).meta;
+    if (slot.kind === "project") return "프로젝트 바로 열기";
+    if (slot.kind === "note") return "저장한 글 바로 열기";
+    return slot.createProjectId ? (getProject(slot.createProjectId)?.name || "지정 프로젝트") : "현재 프로젝트";
+  }
+
+  function renderQuickMenu() {
+    const mode = lucyQuickCurrentMode(), cfg = quickMenuConfig(mode);
+    const box = $("quickMenuSlots"), count = $("quickMenuCount"), meta = $("quickMenuSlotMeta"), root = $("quickMenu");
+    const settingSub = mode === "diary" ? $("setDiaryQuickMenuSub") : $("setQuickMenuSub");
+    const settingVal = mode === "diary" ? $("setDiaryQuickMenuVal") : $("setQuickMenuVal");
+    const enabled = cfg.enabled !== false, mini = cfg.displayMode === "mini", limit = quickMenuSlotLimit(cfg);
+    if (root) { root.hidden = !enabled; root.classList.toggle("is-mini", mini); root.setAttribute("aria-hidden", String(!enabled)); root.dataset.quickMenuMode = mode; }
+    document.body.classList.toggle("quick-menu-disabled", !enabled);
+    if (!enabled && document.body.classList.contains("quick-menu-open")) setQuickMenuOpen(false);
+    if (box) {
+      const markup = cfg.slots.map((slot, index) => quickMenuSlotMarkup(slot, index, false)).join("");
+      if (box.dataset.qmMarkup !== markup || box.dataset.qmMode !== mode) {
+        box.dataset.qmMarkup = markup; box.dataset.qmMode = mode; box.innerHTML = markup;
+        box.querySelectorAll("[data-qm-run]").forEach((button) => button.addEventListener("click", () => { quickMenuContextMode = mode; void runQuickMenuSlot(Number(button.dataset.qmRun)); }));
+        box.querySelectorAll("[data-qm-empty]").forEach((button) => button.addEventListener("click", () => { quickMenuContextMode = mode; setQuickMenuOpen(false); openQuickMenuSlotTypePicker(Number(button.dataset.qmEmpty)); }));
+      }
+    }
+    const filled = quickMenuFilledCount(mode);
+    if (count) count.textContent = `${filled} / ${limit} 등록`;
+    if (meta) meta.textContent = `${mode === "diary" ? "DIARY" : "MEMO"} · ${limit} SLOTS`;
+    if (settingSub) settingSub.textContent = enabled ? `오른쪽 가장자리 · ${quickMenuDisplayModeName(cfg)} · ${filled}/${limit} 등록` : "사용 안 함 · 퀵 메뉴 탭 숨김";
+    if (settingVal) settingVal.textContent = enabled ? `${quickMenuDisplayModeName(cfg)} ›` : "꺼짐 ›";
+  }
+  async function persistQuickMenu(options) {
+    const opt = options || {}, mode = lucyQuickMode(opt.mode), cfg = normalizeQuickMenu(quickMenuConfig(mode));
+    cfg.updatedAt = now();
+    if (mode === "diary") st.diaryQuickMenu = cfg; else st.quickMenu = cfg;
+    await put("settings", { id: mode === "diary" ? DIARY_QUICK_MENU_SETTING_ID : QUICK_MENU_SETTING_ID, value: jsonCopy(cfg), updatedAt: cfg.updatedAt });
+    if (opt.backup !== false) triggerAutoBackup();
+    renderQuickMenu();
+    if (typeof curView === "function" && curView().s === "settings") renderSettings();
+  }
+  async function setQuickMenuSlotCount(value) {
+    const cfg = quickMenuConfig(), next = quickMenuSlotCount(value);
+    if (quickMenuSlotLimit(cfg) === next) return;
+    const current = cfg.slots.slice(0, next); while (current.length < next) current.push(emptyQuickMenuSlot(current.length));
+    cfg.slotCount = next; cfg.slots = current.map((slot, index) => Object.assign(emptyQuickMenuSlot(index), slot || {}, {slotId:index+1}));
+    await persistQuickMenu();
+  }
+  async function loadQuickMenuSetting() {
+    try {
+      const [memoRow, diaryRow] = await Promise.all([getOne("settings", QUICK_MENU_SETTING_ID), getOne("settings", DIARY_QUICK_MENU_SETTING_ID)]);
+      st.quickMenu = normalizeQuickMenu(memoRow && memoRow.value);
+      st.diaryQuickMenu = normalizeQuickMenu(diaryRow && diaryRow.value);
+    } catch (e) { st.quickMenu = normalizeQuickMenu(null); st.diaryQuickMenu = normalizeQuickMenu(null); }
+    const memoChanged = await pruneQuickMenuReferences(false, "memo"), diaryChanged = await pruneQuickMenuReferences(false, "diary");
+    if (memoChanged) await persistQuickMenu({backup:false,mode:"memo"});
+    if (diaryChanged) await persistQuickMenu({backup:false,mode:"diary"});
+    renderQuickMenu();
+  }
+  async function restoreQuickMenuConfig(value, mode) {
+    const target = lucyQuickMode(mode || "memo"); if (!value || typeof value !== "object") return;
+    if (target === "diary") st.diaryQuickMenu = normalizeQuickMenu(value); else st.quickMenu = normalizeQuickMenu(value);
+    await pruneQuickMenuReferences(false, target); await persistQuickMenu({backup:false,mode:target});
+  }
+  async function pruneQuickMenuReferences(shouldPersist, mode) {
+    const ctx = lucyQuickMode(mode), cfg = quickMenuConfig(ctx); let changed = false;
+    cfg.slots.forEach((slot,index) => {
+      if (!slot || !slot.kind) return;
+      if (slot.kind === "project" && !getProject(slot.targetId)) { cfg.slots[index] = emptyQuickMenuSlot(index); changed = true; return; }
+      if (slot.kind === "note" && !getNote(slot.targetId)) { cfg.slots[index] = emptyQuickMenuSlot(index); changed = true; return; }
+      if (slot.kind === "create" && slot.createProjectId && !getProject(slot.createProjectId)) { slot.createProjectId = null; changed = true; }
+    });
+    if (changed && shouldPersist) await persistQuickMenu({backup:false,mode:ctx}); else if (changed) renderQuickMenu();
+    return changed;
+  }
+  async function runQuickMenuFunction(functionId) {
+    const id = quickMenuFunction(functionId).id; setQuickMenuOpen(false);
+    if (id === "switch-diary-mode") { setAppMode("diary"); return; }
+    if (id === "switch-memo-mode") { setAppMode("memo"); return; }
+    if (id === "diary-quick-add") { if (!isDiaryMode()) setAppMode("diary"); setTimeout(openDiaryQuickAdd,0); return; }
+    if (id === "diary-add-dday") { if (!isDiaryMode()) setAppMode("diary"); setTimeout(() => openDiaryDdayForm(null),0); return; }
+    if (id === "diary-add-todo") { if (!isDiaryMode()) setAppMode("diary"); setTimeout(() => openDiaryTodoForm(null),0); return; }
+    if (id === "diary-add-schedule") { if (!isDiaryMode()) setAppMode("diary"); setTimeout(() => openDiaryScheduleForm(null),0); return; }
+    if (id === "diary-manage") { if (!isDiaryMode()) setAppMode("diary"); setTimeout(openDiaryManager,0); return; }
+    if (id === "diary-layout") { const d=currentDiary(); if (!isDiaryMode()) setAppMode("diary"); setTimeout(() => openDiaryLayoutEditor(d.id),0); return; }
+    if (id === "diary-settings") { if (!isDiaryMode()) setAppMode("diary"); setTimeout(openDiarySettings,0); return; }
+    if (id === "home") { await goHome(); return; }
+    if (id === "settings") { await flushPending(); go({s:"settings"}); return; }
+    if (id === "app-reload") { await flushPending(); window.location.reload(); return; }
+    if (id === "setting-theme") { applyTheme(st.theme === "light" ? "dark" : "light"); renderSettings(); return; }
+    if (id === "setting-accent") { openAccentPicker(); return; }
+    if (id === "setting-font") { showFontDialog(); return; }
+    if (id === "setting-toolbar") { openFormatbarModePicker(); return; }
+    if (id === "setting-quick-menu") { openQuickMenuSettings("memo"); return; }
+    if (id === "setting-install") { await openInstallStartPage(); return; }
+    if (id === "setting-backup") { await exportBackup(); return; }
+    if (id === "setting-restore") { $("restoreInput")?.click(); return; }
+    if (id === "setting-auto-backup") { openAutoBackupList(); return; }
+    if (id === "setting-storage") { await openQuickMenuStorageInfo(); return; }
+    if (id === "setting-reset") { resetData(); return; }
+    if (id === "setting-manual") { await openManualPage(); }
+  }
+  async function runQuickMenuSlot(index) {
+    const mode = lucyQuickCurrentMode(), slot = quickMenuConfig(mode).slots[index];
+    if (!slot || !slot.kind) { quickMenuContextMode = mode; openQuickMenuSlotTypePicker(index); return; }
+    if (slot.kind === "function") { await runQuickMenuFunction(slot.functionId); return; }
+    if (mode === "diary") { toast("다이어리 퀵메뉴는 다이어리 동작 전용으로 구성돼요"); return; }
+    if (slot.kind === "project") { const p=getProject(slot.targetId); if(!p){await pruneQuickMenuReferences(true,mode);toast("삭제된 프로젝트 바로가기를 정리했어요");return;} setQuickMenuOpen(false); await openProject(p.id); return; }
+    if (slot.kind === "note") { const n=getNote(slot.targetId); if(!n){await pruneQuickMenuReferences(true,mode);toast("삭제된 메모 바로가기를 정리했어요");return;} setQuickMenuOpen(false); await openNote(n.id); return; }
+    setQuickMenuOpen(false); const configured=slot.createProjectId&&getProject(slot.createProjectId), current=st.curProjectId&&getProject(st.curProjectId), pid=(configured||current)&&(configured||current).id;
+    if(pid){ await quickCreateFromSlot(slot,pid); return; } pickTargetProject(null,(projectId)=>{void quickCreateFromSlot(slot,projectId);});
+  }
+  function openQuickMenuManager() {
+    const mode = lucyQuickMode(), cfg = quickMenuConfig(mode), limit = quickMenuSlotLimit(cfg), kind = mode === "diary" ? "다이어리 퀵메뉴" : "메모 퀵메뉴";
+    openModal(`<h3>${kind} 편집</h3><p class="m-sub">${mode === "diary" ? "다이어리 모드에서만 보이는, 일정과 기록 흐름에 맞춘 전용 바로가기입니다." : "메모 모드에서만 보이는, 프로젝트와 창작 기록을 위한 전용 바로가기입니다."} 최대 ${limit}개를 정해요.</p><div class="qm-manager-grid">${cfg.slots.map((slot,index)=>quickMenuSlotMarkup(slot,index,true)).join("")}</div><div class="m-row"><button class="m-btn" id="qmManagerClose">닫기</button></div>`);
+    $("modalBox").querySelectorAll("[data-qm-manage-slot]").forEach((button)=>button.addEventListener("click",()=>{const index=Number(button.dataset.qmManageSlot),slot=quickMenuConfig().slots[index];if(slot&&slot.kind)openQuickMenuSlotEditor(index);else openQuickMenuSlotTypePicker(index);}));
+    $on("qmManagerClose","click",closeModal);
+  }
+  function openQuickMenuSlotTypePicker(index) {
+    const mode=lucyQuickMode(), blank=emptyQuickMenuSlot(index);
+    const choices = mode === "diary"
+      ? `<button type="button" class="qm-choice" data-qm-kind="function">${quickMenuSlotMedia(Object.assign(blank,{kind:"function",functionId:"diary-quick-add"}))}<span class="qm-choice-copy"><b>다이어리 기능 바로가기</b><small>디데이 · 투두 · 일정 · 다이어리 관리</small></span><span class="qm-choice-arrow">›</span></button>`
+      : `<button type="button" class="qm-choice" data-qm-kind="function">${quickMenuSlotMedia(Object.assign(blank,{kind:"function",functionId:"home"}))}<span class="qm-choice-copy"><b>기능 바로가기</b><small>홈 · 설정 · 화면 설정 · 모드 전환</small></span><span class="qm-choice-arrow">›</span></button><button type="button" class="qm-choice" data-qm-kind="project">${quickMenuSlotMedia(Object.assign(blank,{kind:"project"}))}<span class="qm-choice-copy"><b>프로젝트 바로가기</b><small>특정 프로젝트를 한 번에 열기</small></span><span class="qm-choice-arrow">›</span></button><button type="button" class="qm-choice" data-qm-kind="note">${quickMenuSlotMedia(Object.assign(blank,{kind:"note"}))}<span class="qm-choice-copy"><b>내 글 바로가기</b><small>특정 메모를 바로 열기</small></span><span class="qm-choice-arrow">›</span></button><button type="button" class="qm-choice" data-qm-kind="create">${quickMenuSlotMedia(Object.assign(blank,{kind:"create"}))}<span class="qm-choice-copy"><b>메모 바로 만들기</b><small>타입과 저장 위치를 미리 지정</small></span><span class="qm-choice-arrow">›</span></button>`;
+    openModal(`<h3>슬롯 ${index+1} 등록</h3><p class="m-sub">바로 실행할 동작을 고르세요.</p><div class="qm-choice-list">${choices}</div><div class="m-row"><button class="m-btn" id="qmTypeCancel">취소</button></div>`);
+    $("modalBox").querySelectorAll("[data-qm-kind]").forEach((button)=>button.addEventListener("click",()=>{const kind=button.dataset.qmKind;if(kind==="function")openQuickMenuFunctionPicker(index);else if(kind==="project")openQuickMenuProjectPicker(index);else if(kind==="note")openQuickMenuNotePicker(index);else openQuickMenuCreateTypePicker(index);}));
+    $on("qmTypeCancel","click",closeModal);
+  }
+  function openQuickMenuFunctionPicker(index) {
+    const mode=lucyQuickMode(), blank=emptyQuickMenuSlot(index), funcs=lucyQuickMenuFunctions(mode), groups=[...new Set(funcs.map((item)=>item.group))];
+    const groupMarkup=groups.map((group)=>{const rows=funcs.filter((item)=>item.group===group).map((item)=>`<button type="button" class="qm-picker-row qm-function-row" data-qm-function="${esc(item.id)}">${quickMenuSlotMedia(Object.assign(blank,{kind:"function",functionId:item.id}))}<span><b>${esc(item.label)}</b><small>${esc(item.meta)}</small></span><i>›</i></button>`).join("");return `<section class="qm-function-group"><h4>${esc(group)}</h4><div class="qm-picker-list">${rows}</div></section>`;}).join("");
+    openModal(`<h3>${mode === "diary" ? "다이어리" : "메모"} 기능 바로가기</h3><p class="m-sub">현재 모드에 맞는 기능만 표시합니다.</p><div class="qm-function-picker">${groupMarkup}</div><div class="m-row"><button class="m-btn" id="qmFunctionBack">뒤로</button></div>`);
+    $("modalBox").querySelectorAll("[data-qm-function]").forEach((button)=>button.addEventListener("click",async()=>{await setQuickMenuSlot(index,{kind:"function",functionId:button.dataset.qmFunction});openQuickMenuSlotEditor(index);}));
+    $on("qmFunctionBack","click",()=>openQuickMenuSlotTypePicker(index));
+  }
+  function openQuickMenuCreateTypePicker(index) {
+    const options=[
+      ["free","single","자유 메모","바로 빈 문서 열기"],["html","single","코드 작업실","HTML · JSON · MD 원본 편집"],["regex","single","정규식 작업실","SillyTavern Regex 만들기"],["pdf","single","PDF 작업실","PDF 열기와 내보내기"],["lorebook","single","로어북","World Info용 항목 만들기"],["log","single","로그 저장","대화 로그용 메모 만들기"],
+      ["persona","single","페르소나","단일 페르소나 카드"],["persona","collection","다인 페르소나","페르소나 모음 카드"],["character","single","캐릭터","신규 캐릭터 카드 · 이미지형/텍스트형"],["character","collection","다인 캐릭터","신규 캐릭터 모음 · 이미지형/텍스트형"],["character","single","루미 캐릭터","기존 호환 캐릭터 카드"],["character","collection","루미 다인 캐릭터","기존 호환 캐릭터 모음"],["idea","single","아이디어 보드","자유 배치 보드 만들기"]
+    ];
+    openModal(`<h3>만들 메모 타입</h3><p class="m-sub">실행하면 이 타입의 새 메모를 바로 만듭니다.</p><div class="qm-picker-list">${options.map(([type,mode,label,desc])=>`<button type="button" class="qm-picker-row" data-qm-create-type="${type}" data-qm-create-mode="${mode}" data-qm-card-variant="${label.startsWith("루미") ? "lumi" : (type === "character" ? "lucy" : "")}"><b>${esc(label)}</b><small>${esc(desc)}</small></button>`).join("")}</div><div class="m-row"><button class="m-btn" id="qmCreateTypeBack">뒤로</button></div>`);
+    $("modalBox").querySelectorAll("[data-qm-create-type]").forEach((button)=>button.addEventListener("click",()=>openQuickMenuCreateProjectPicker(index,{createType:button.dataset.qmCreateType,createMode:button.dataset.qmCreateMode,characterVariant:button.dataset.qmCardVariant || null})));
+    $on("qmCreateTypeBack","click",()=>openQuickMenuSlotTypePicker(index));
+  }
+  async function quickCreateFromSlot(slot, projectId) {
+    const type=QUICK_MENU_ALLOWED_TYPES.has(slot.createType)?slot.createType:"free",p=getProject(projectId);if(!p){toast("저장할 프로젝트를 찾지 못했어요");return;}
+    try{await flushPending();const options=(type==="persona"||type==="character")?{characterMode:slot.createMode==="collection"?"collection":"single",characterVariant:slot.characterVariant === "lumi" ? "lumi" : "lucy"}:null;const n=await createNote(type,p.id,options);triggerAutoBackup();await openNote(n.id);}catch(e){console.warn("quick menu create",e);toast("새 메모를 만들지 못했어요");}
+  }
+  function openQuickMenuSettings(mode) {
+    quickMenuContextMode=lucyQuickMode(mode || lucyQuickCurrentMode());
+    const cfg=quickMenuConfig(),enabled=cfg.enabled!==false,display=cfg.displayMode==="mini"?"mini":"full",slotCount=quickMenuSlotLimit(cfg),kind=quickMenuContextMode==="diary"?"다이어리 퀵메뉴":"메모 퀵메뉴";
+    const preview=(v)=>v==="mini"?`<span class="qm-display-schematic mini" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>`:`<span class="qm-display-schematic full" aria-hidden="true"><i></i><i></i><i></i></span>`;
+    openModal(`<h3>${kind}</h3><p class="m-sub">${quickMenuContextMode==="diary"?"메모 퀵메뉴와 완전히 별개로 저장됩니다. 다이어리 흐름에 필요한 기능만 넣어두세요.":"다이어리 퀵메뉴와 별개로 저장됩니다. 창작과 프로젝트 흐름에 맞춰 구성하세요."}</p><div class="set-row" id="qmEnabled"><div class="set-rtext"><div class="set-rlabel">사용</div><div class="set-rsub">오른쪽 가장자리 탭 표시</div></div><div class="set-rval">${enabled?"켜짐":"꺼짐"} ›</div></div><div class="qm-display-pick"><button type="button" class="qm-display-choice${display==="full"?" selected":""}" data-qm-display="full">${preview("full")}<b>기본형</b><small>이름과 설명 표시</small></button><button type="button" class="qm-display-choice${display==="mini"?" selected":""}" data-qm-display="mini">${preview("mini")}<b>미니형</b><small>아이콘 중심</small></button></div><div class="qm-slot-count"><div><b>슬롯 수</b><small>1–10개</small></div><input id="qmSlotCountRange" type="range" min="1" max="10" value="${slotCount}"><input id="qmSlotCountInput" class="m-input" type="number" min="1" max="10" value="${slotCount}"></div><div class="m-row"><button class="m-btn" id="qmOpenManager">슬롯 편집</button><button class="m-btn" id="qmSettingsClose">닫기</button></div>`);
+    $on("qmEnabled","click",async()=>{quickMenuConfig().enabled=!quickMenuConfig().enabled;await persistQuickMenu();openQuickMenuSettings(quickMenuContextMode);});
+    $("modalBox").querySelectorAll("[data-qm-display]").forEach((button)=>button.addEventListener("click",async()=>{quickMenuConfig().displayMode=button.dataset.qmDisplay;await persistQuickMenu();openQuickMenuSettings(quickMenuContextMode);}));
+    const sync=(v)=>{const n=quickMenuSlotCount(v);const range=$("qmSlotCountRange"),input=$("qmSlotCountInput");if(range)range.value=n;if(input)input.value=n;return n;};
+    $on("qmSlotCountRange","input",(event)=>sync(event.target.value));$on("qmSlotCountRange","change",async(event)=>{await setQuickMenuSlotCount(sync(event.target.value));openQuickMenuSettings(quickMenuContextMode);});$on("qmSlotCountInput","change",async(event)=>{await setQuickMenuSlotCount(sync(event.target.value));openQuickMenuSettings(quickMenuContextMode);});
+    $on("qmOpenManager","click",openQuickMenuManager);$on("qmSettingsClose","click",closeModal);
+  }
+
+  function ensureSettingsTabs() {
+    const tabs=[...document.querySelectorAll("[data-settings-tab]")], panels=[...document.querySelectorAll("[data-settings-panel]")];
+    if (!tabs.length || tabs[0].dataset.lucyBound) return;
+    const select=(name)=>{tabs.forEach((tab)=>{const on=tab.dataset.settingsTab===name;tab.classList.toggle("active",on);tab.setAttribute("aria-selected",on?"true":"false");});panels.forEach((panel)=>{const on=panel.dataset.settingsPanel===name;panel.classList.toggle("active",on);panel.hidden=!on;});try{localStorage.setItem("lucyInkSettingsTab",name);}catch(e){}};
+    let initial="common";try{const saved=localStorage.getItem("lucyInkSettingsTab");if(saved&&panels.some((x)=>x.dataset.settingsPanel===saved))initial=saved;}catch(e){}
+    tabs.forEach((tab)=>{tab.dataset.lucyBound="1";tab.addEventListener("click",()=>select(tab.dataset.settingsTab));});select(initial);
+  }
+  function renderSettings() {
+    $("setThemeVal").textContent=st.theme==="light"?"밝게":"어둡게";$("setFontSub").textContent=(st.userFont&&st.userFont.name)?st.userFont.name:"기본 폰트";
+    document.querySelectorAll("#fontSizeSeg button").forEach((b)=>b.classList.toggle("on",b.dataset.fs===(st.fontScale||"normal")));
+    const av=$("setAccentVal");if(av)av.innerHTML=`<span class="accent-dot"></span>${themeDisplayName()}`;const toolbar=$("setToolbarModeVal");if(toolbar)toolbar.textContent=st.formatbarMode==="folded"?"접어두기":"항상 표시";
+    const diarySub=$("setDiarySub"),diaryVal=$("setDiaryVal");if(diarySub)diarySub.textContent=diarySummaryText();if(diaryVal)diaryVal.textContent=`${diaryConfig().diaries.length}개 ›`;
+    const backupLimit=getAutoBackupLimit(),backupSub=$("setAutoBackupSub"),backupVal=$("setAutoBackupVal");if(backupSub)backupSub.textContent=`저장할 때마다 최근 ${backupLimit}개 스냅샷 보관`;if(backupVal)backupVal.textContent=`${backupLimit}개 보관 ›`;
+    ensureSettingsTabs();renderQuickMenu();updateStorageUsage();
+  }
+
+  // -- Character card schema -------------------------------------------------
+  function lucyCharacterVariant(n) { const d=ensureCharacterData(n); return d.cardVariant === "lucy" ? "lucy" : "lumi"; }
+  function lucyCharacterStyle(n) { const d=ensureCharacterData(n); return d.cardVariant === "lucy" && d.displayStyle === "text" ? "text" : "image"; }
+  function lucyNormalizeSections(value, fallback) {
+    const source=Array.isArray(value)?value:[];const out=[];source.slice(0,24).forEach((item)=>{const obj=item&&typeof item==="object"?item:{};out.push({id:typeof obj.id==="string"&&obj.id?obj.id:uid(),title:cleanImportedText(String(obj.title||""),80).trim()||"설명",body:String(obj.body??obj.detail??"")});});
+    if(!out.length)out.push({id:uid(),title:"상세 설명",body:String(fallback||"")});return out;
+  }
+  function lucySectionsPlain(sections) { return (sections||[]).map((item)=>`${String(item.title||"").trim()?`[${String(item.title).trim()}] `:""}${String(item.body||"")}`).filter(Boolean).join("\n\n"); }
+  function makeCharacterPage() { return {id:uid(),portrait:null,square:null,gallery:[],creatorMemo:"",ko:{name:"",tags:[],detail:"",sections:[{id:uid(),title:"상세 설명",body:""}]},en:{name:"",tags:[],detail:"",sections:[{id:uid(),title:"Description",body:""}]}}; }
+  function ensureCharacterPage(page) {
+    const p=page&&typeof page==="object"?page:makeCharacterPage();if(!p.id)p.id=uid();p.portrait=typeof p.portrait==="string"?p.portrait:null;p.square=typeof p.square==="string"?p.square:null;p.gallery=Array.isArray(p.gallery)?p.gallery.filter((x)=>typeof x==="string"):[];p.creatorMemo=normalizeCreatorMemo(p.creatorMemo);
+    ["ko","en"].forEach((lang)=>{p[lang]=p[lang]&&typeof p[lang]==="object"?p[lang]:{};p[lang].name=String(p[lang].name||"");p[lang].detail=String(p[lang].detail||"");p[lang].tags=Array.isArray(p[lang].tags)?p[lang].tags.map(String).filter(Boolean):(p[lang].brief?[String(p[lang].brief)]:[]);p[lang].sections=lucyNormalizeSections(p[lang].sections,p[lang].detail);delete p[lang].brief;});return p;
+  }
+  function ensureCharacterData(n) {
+    const d=n.data=n.data&&typeof n.data==="object"?n.data:{};d.mode=d.mode==="single"?"single":"collection";d.cardTypeVersion=3;d.cardVariant=d.cardVariant==="lucy"?"lucy":"lumi";d.displayStyle=d.displayStyle==="text"?"text":"image";d.pages=Array.isArray(d.pages)&&d.pages.length?d.pages.map(ensureCharacterPage):[makeCharacterPage()];if(!d.activeId||!d.pages.some((p)=>p.id===d.activeId))d.activeId=d.pages[0].id;d.coverImage=safeImageSource(d.coverImage)||null;return d;
+  }
+  function characterTextSnapshot(n,fromEditor) {
+    const d=ensureCharacterData(n),copy={activeId:d.activeId,pages:d.pages.map((p)=>({id:p.id,ko:{name:p.ko.name,tags:p.ko.tags.slice(),detail:p.ko.detail,sections:jsonCopy(p.ko.sections)||[]},en:{name:p.en.name,tags:p.en.tags.slice(),detail:p.en.detail,sections:jsonCopy(p.en.sections)||[]},creatorMemo:p.creatorMemo}))};
+    if(fromEditor&&st.charEdit){const page=copy.pages.find((p)=>p.id===d.activeId)||copy.pages[0];if(page){page.ko.name=$("charKoName").value;page.ko.detail=$("charKoDetail").value;page.en.name=$("charEnName").value;page.en.detail=$("charEnDetail").value;page.creatorMemo=getCreatorMemoHtml();}}
+    return copy;
+  }
+  function lucyUpdateCharacterCounters(n) {
+    const page=activeCharacterPage(n);["ko","en"].forEach((lang)=>{const text=lucyCharacterStyle(n)==="text"?lucySectionsPlain(page[lang].sections):String(page[lang].detail||"");const all=[...text].length,without=text.replace(/\s/g,"").length,el=$(lang==="ko"?"charKoTok":"charEnTok");if(el)el.innerHTML=`<b>${all.toLocaleString()}</b>자 · 공백 제외 ${without.toLocaleString()}`;});
+  }
+  function updateCharTokens(n){lucyUpdateCharacterCounters(n);}
+  function lucyEnsureSectionHost(lang) {
+    const textarea=$(lang==="ko"?"charKoDetail":"charEnDetail");if(!textarea)return null;let host=textarea.parentElement.querySelector(`.char-section-editor[data-char-sections="${lang}"]`);if(!host){host=document.createElement("div");host.className="char-section-editor";host.dataset.charSections=lang;textarea.insertAdjacentElement("beforebegin",host);}return {host,textarea};
+  }
+  function lucyRenderSectionEditors(n) {
+    const page=activeCharacterPage(n), textMode=lucyCharacterStyle(n)==="text";
+    ["ko","en"].forEach((lang)=>{const pair=lucyEnsureSectionHost(lang);if(!pair)return;const {host,textarea}=pair;host.classList.toggle("is-open",textMode);textarea.hidden=textMode;textarea.setAttribute("aria-hidden",textMode?"true":"false");if(!textMode)return;const sections=page[lang].sections=lucyNormalizeSections(page[lang].sections,page[lang].detail);host.innerHTML=`${sections.map((item,index)=>`<article class="char-section-card" data-char-section="${esc(item.id)}"><div class="char-section-head"><input type="text" maxlength="80" value="${esc(item.title)}" placeholder="항목 제목" data-char-section-title="${esc(item.id)}"><button type="button" class="char-section-remove" data-char-section-remove="${esc(item.id)}" aria-label="이 항목 삭제">×</button></div><textarea class="m-textarea" data-char-section-body="${esc(item.id)}" placeholder="${lang==="ko"?"이 항목의 설명을 입력하세요":"Write this section"}">${esc(item.body)}</textarea></article>`).join("")}<button type="button" class="char-section-add" data-char-section-add="${lang}"><span>＋</span> ${lang==="ko"?"설명 항목 추가":"Add description section"}</button>`;
+      host.querySelectorAll("[data-char-section-title]").forEach((input)=>input.addEventListener("input",()=>{const item=page[lang].sections.find((x)=>x.id===input.dataset.charSectionTitle);if(!item)return;item.title=input.value;page[lang].detail=lucySectionsPlain(page[lang].sections);textarea.value=page[lang].detail;scheduleCharSave();lucyUpdateCharacterCounters(n);}));
+      host.querySelectorAll("[data-char-section-body]").forEach((input)=>input.addEventListener("input",()=>{const item=page[lang].sections.find((x)=>x.id===input.dataset.charSectionBody);if(!item)return;item.body=input.value;page[lang].detail=lucySectionsPlain(page[lang].sections);textarea.value=page[lang].detail;scheduleCharSave();lucyUpdateCharacterCounters(n);}));
+      host.querySelectorAll("[data-char-section-remove]").forEach((button)=>button.addEventListener("click",()=>{if(page[lang].sections.length<=1){toast(lang==="ko"?"설명 항목은 하나 이상 남겨 주세요":"Keep at least one description section");return;}page[lang].sections=page[lang].sections.filter((x)=>x.id!==button.dataset.charSectionRemove);page[lang].detail=lucySectionsPlain(page[lang].sections);textarea.value=page[lang].detail;scheduleCharSave();lucyRenderSectionEditors(n);lucyUpdateCharacterCounters(n);}));
+      const add=host.querySelector("[data-char-section-add]");if(add)add.addEventListener("click",()=>{page[lang].sections.push({id:uid(),title:lang==="ko"?"새 설명":"New section",body:""});page[lang].detail=lucySectionsPlain(page[lang].sections);textarea.value=page[lang].detail;scheduleCharSave();lucyRenderSectionEditors(n);setTimeout(()=>host.querySelector("[data-char-section-title]:last-of-type")?.focus(),0);});
+    });
+  }
+  function renderCharacterEdit(n) {
+    const page=activeCharacterPage(n);$("charKoName").value=page.ko.name||"";$("charKoDetail").value=page.ko.detail||"";$("charEnName").value=page.en.name||"";$("charEnDetail").value=page.en.detail||"";renderCreatorEditor(page.creatorMemo);const hilite=$("charCreatorHiliteBtn");if(hilite)hilite.style.setProperty("--hilite-color",getHiliteColor());renderCharImagesEdit(n);renderCharTags(n,"ko");renderCharTags(n,"en");renderCharGallery(n,false);lucyRenderSectionEditors(n);lucyUpdateCharacterCounters(n);
+  }
+  function lucyReadSections(page,lang){const sections=page[lang].sections||[];return `<div class="char-read-sections">${sections.map((item)=>`<article class="char-read-section"><h4>${esc(item.title|| (lang==="ko"?"설명":"Description"))}</h4><p>${esc(item.body||"")}</p></article>`).join("")}</div>`;}
+  function renderCharacterRead(n) {
+    const page=activeCharacterPage(n),o=page[charLang]||{},textMode=lucyCharacterStyle(n)==="text";const portrait=$("charRPortrait"),square=$("charRSquare");
+    portrait.hidden=textMode;square.hidden=textMode;if(!textMode){portrait.innerHTML=page.portrait?`<img src="${page.portrait}" alt="">`:'<div class="per-ph"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><circle cx="9" cy="9" r="1.8"/><path d="M20 15l-5-4L6 19"/></svg><span>이미지 없음</span></div>';portrait.onclick=page.portrait?()=>openLightbox(page.portrait,[page.portrait],0):null;const sq=page.square||page.portrait;square.innerHTML=`<img src="${sq||DEFAULT_ICON}" alt="">`;square.onclick=sq?()=>openLightbox(sq,[sq],0):null;}
+    $("charRName").textContent=o.name||"";const tags=$("charRTags");tags.innerHTML="";(o.tags||[]).forEach((tag)=>{const chip=document.createElement("span");chip.className="kw-chip";chip.textContent=tag;tags.appendChild(chip);});$("charRDetail").innerHTML=textMode?lucyReadSections(page,charLang):personaDetailHTML(o.detail);
+    const creator=$("charRCreator"),creatorHtml=normalizeCreatorMemo(page.creatorMemo);creator.hidden=!creatorHtml.trim();const token=$("charRTok"),text=textMode?lucySectionsPlain(page[charLang].sections):String(o.detail||""),all=[...text].length,without=text.replace(/\s/g,"").length;if(token)token.innerHTML=`<b>${all.toLocaleString()}</b>자 · 공백 제외 ${without.toLocaleString()}`;
+    renderCharGallery(n,true);const gallerySection=$("charRGallery").closest(".per-section");if(gallerySection)gallerySection.hidden=textMode&&!(page.gallery&&page.gallery.length);renderCharNav(n,true);const sw=$("charPageSwitch");sw.hidden=ensureCharacterData(n).mode==="single"||ensureCharacterData(n).pages.length<2;if(!sw.hidden)$("charSwitchHint").textContent=`${ensureCharacterData(n).pages.findIndex((p)=>p.id===page.id)+1} / ${ensureCharacterData(n).pages.length}`;
+  }
+  function renderCharacter() {
+    const n=getNote(st.curNoteId);if(!n||!isCharacterCardType(n)){back();return;}const data=ensureCharacterData(n),single=data.mode==="single",variant=lucyCharacterVariant(n),style=lucyCharacterStyle(n);
+    document.body.classList.toggle("char-single-mode",single);$("screen-character").classList.toggle("lucy-text-card",variant==="lucy"&&style==="text");$("screen-character").classList.toggle("lucy-image-card",variant==="lucy"&&style==="image");$("screen-character").classList.toggle("lumi-character-card",variant==="lumi");syncCharacterTitle(n);
+    const kind=n.type==="persona"?(single?"페르소나":"페르소나 모음"):(variant==="lucy"?(single?"캐릭터":"다인 캐릭터"):(single?"루미 캐릭터":"루미 다인 캐릭터"));$("charTitle").textContent=n.title||kind;$("charEditView").hidden=!st.charEdit;$("charReadView").hidden=!!st.charEdit;$("charSave").hidden=!st.charEdit;$("charViewIcon").innerHTML=st.charEdit?'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>':'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>';$("charViewToggle").title=st.charEdit?"보기 모드로":"편집 모드로";setCharLang(charLang||"ko");renderCharNav(n,false);renderCharNav(n,true);if(st.charEdit)renderCharacterEdit(n);else renderCharacterRead(n);setCharSaver("");lucyUpdateCharacterCounters(n);queueDraftRecovery(n,"character");
+  }
+  async function flushCharacter(){clearTimeout(charTimer);charTimer=null;const n=getNote(st.curNoteId);if(!n||!isCharacterCardType(n)||!st.charEdit)return;const page=activeCharacterPage(n);page.ko.name=$("charKoName").value;page.ko.detail=$("charKoDetail").value;page.en.name=$("charEnName").value;page.en.detail=$("charEnDetail").value;if(lucyCharacterStyle(n)==="text"){page.ko.sections=lucyNormalizeSections(page.ko.sections,page.ko.detail);page.en.sections=lucyNormalizeSections(page.en.sections,page.en.detail);page.ko.detail=lucySectionsPlain(page.ko.sections);page.en.detail=lucySectionsPlain(page.en.sections);}page.creatorMemo=getCreatorMemoHtml();syncCharacterTitle(n);await saveCharacter(n);clearDraftIfSynced(n,"character",characterTextSnapshot(n,false));lucyUpdateCharacterCounters(n);}
+  function syncCharacterTitle(n){if(!n||n.titleLocked)return;const d=ensureCharacterData(n),first=d.pages[0],base=charPageName(first,"ko"),variant=d.cardVariant==="lucy"?"캐릭터":"루미 캐릭터",empty=n.type==="persona"?"이름 없는 페르소나":`이름 없는 ${variant}`;n.title=d.mode==="single"?(base==="이름 없는 캐릭터"?empty:base):(d.pages.length>1?`${base} 외 ${d.pages.length-1}명`:base);const title=$("charTitle");if(title)title.textContent=n.title;}
+  async function setCharacterDisplayStyle(n,style){if(!n||n.type!=="character")return;const d=ensureCharacterData(n);if(d.cardVariant!=="lucy"){toast("루미 캐릭터는 기존 이미지형 카드 레이아웃을 유지합니다");return;}d.displayStyle=style==="text"?"text":"image";await saveCharacter(n,true);renderCharacter();toast(d.displayStyle==="text"?"텍스트형 캐릭터 카드로 바꿨어요":"이미지형 캐릭터 카드로 바꿨어요");}
+  function openCharacterDisplayStylePicker(n){const current=lucyCharacterStyle(n);openModal(`<h3>캐릭터 표시 형식</h3><p class="m-sub">이미지형은 포트레이트와 정사각형 썸네일을 사용하고, 텍스트형은 제목이 있는 설명 항목을 중심으로 보여줘요. 갤러리는 두 형식 모두 유지됩니다.</p><div class="qm-display-pick"><button type="button" class="qm-display-choice${current==="image"?" selected":""}" data-char-style="image"><span class="qm-display-schematic full"><i></i><i></i><i></i></span><b>이미지형</b><small>포트레이트 · 정사각 썸네일</small></button><button type="button" class="qm-display-choice${current==="text"?" selected":""}" data-char-style="text"><span class="qm-display-schematic mini"><i></i><i></i><i></i><i></i></span><b>텍스트형</b><small>제목형 설명 항목 · 갤러리 선택</small></button></div><div class="m-row"><button class="m-btn" id="charStyleCancel">취소</button></div>`);$("modalBox").querySelectorAll("[data-char-style]").forEach((button)=>button.addEventListener("click",()=>{closeModal();void setCharacterDisplayStyle(n,button.dataset.charStyle);}));$on("charStyleCancel","click",closeModal);}
+  function openCharacterSheet(n){const d=ensureCharacterData(n),single=d.mode==="single",variant=lucyCharacterVariant(n),baseKind=n.type==="persona"?"페르소나":(variant==="lucy"?"캐릭터":"루미 캐릭터"),kind=single?baseKind:`다인 ${baseKind}`;const items=[{icon:IC.pin,label:n.pinned?"고정 해제":"상단 고정",fn:()=>togglePinNote(n.id)},{icon:IC.rename,label:"메모 이름 바꾸기",fn:()=>renameModal(`${kind} 이름`,n.title,async(v)=>{if(v){n.title=v;n.titleLocked=true;await saveCharacter(n,true);render();}})}];if(n.type==="character"&&variant==="lucy")items.push({icon:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h7"/></svg>',label:`표시 형식 · ${lucyCharacterStyle(n)==="text"?"텍스트형":"이미지형"}`,fn:()=>openCharacterDisplayStylePicker(n)});if(!(n.type==="character"&&variant==="lucy"&&lucyCharacterStyle(n)==="text"))items.push({icon:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.7"/><path d="M21 16l-5-5L5 21"/></svg>',label:"대표 썸네일 지정",fn:()=>chooseCharacterCover(n)});items.push({icon:IC.color,label:"색상 지정",fn:()=>showChipPicker(n.id)},{icon:IC.save,label:`${kind} HTML로 저장`,fn:async()=>{if(st.charEdit)await flushCharacter();chooseCharacterExportOptions(n.id);}});if(single)items.push({icon:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M18 16v5M15.5 18.5h5"/></svg>',label:`${baseKind} 모음으로 확장`,fn:()=>setCharacterMode(n,"collection")});else if(d.pages.length===1)items.push({icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>',label:`단일 ${baseKind}로 정리`,fn:()=>setCharacterMode(n,"single")});if(!single&&d.pages.length>1)items.push({icon:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="10" height="14" rx="2"/><path d="M9 8h2M9 12h2"/><path d="M15 10h4v10H9v-2"/></svg>',label:`현재 페이지를 단일 ${baseKind}로 분리 복사`,fn:()=>copyActiveCharacterPageAsSingle(n)},{icon:'<svg viewBox="0 0 24 24"><path d="M8 5h8M8 19h8M12 5v14"/><path d="M5 12h14"/></svg>',label:"현재 캐릭터 페이지 삭제",danger:true,fn:()=>removeActiveCharacterPage()});items.push({icon:IC.move,label:"다른 프로젝트로 이동",fn:()=>pickTargetProject(n.projectId,(pid)=>moveNote(n.id,pid).then(render))},{icon:IC.copy,label:"선택 위치로 복제",fn:()=>pickTargetProject(n.projectId,(pid)=>duplicateNote(n.id,pid).then(render))},{icon:IC.del,label:`${kind} 삭제`,danger:true,fn:()=>confirmModal(`${kind} 삭제`, `'${n.title}'를 삭제할까요?`,"삭제",true,async()=>{await deleteNote(n.id);back();})});openSheet(n.title,items);}
+  function typePickerOptions(button){const type=button.dataset.createType||button.dataset.t,mode=button.dataset.characterMode==="single"?"single":"collection",variant=button.dataset.cardVariant==="lumi"?"lumi":(button.dataset.cardVariant==="lucy"?"lucy":null);return {type,options:(type==="character"||type==="persona")?{characterMode:mode,characterVariant:variant}:null};}
+  async function createNote(type,projectId,options){const characterModeOption=options&&options.characterMode==="single"?"single":"collection",characterVariant=options&&options.characterVariant==="lumi"?"lumi":(type==="character"?"lucy":null),characterTitle=characterModeOption==="single"?(characterVariant==="lumi"?"이름 없는 루미 캐릭터":"이름 없는 캐릭터"):(characterVariant==="lumi"?"이름 없는 루미 다인 캐릭터":"이름 없는 다인 캐릭터"),personaTitle=characterModeOption==="single"?"이름 없는 페르소나":"이름 없는 페르소나 모음";const n={id:uid(),projectId,type,title:type==="lorebook"?"이름 없는 로어북":type==="log"?"이름 없는 로그":type==="idea"?"새 아이디어 보드":type==="persona"?personaTitle:type==="character"?characterTitle:type==="html"?"제목 없는 코드 작업실":type==="regex"?"새 정규식 작업실":type==="pdf"?"새 PDF 작업실":"제목 없는 메모",titleLocked:type==="lorebook",chipColor:null,createdAt:now(),updatedAt:now(),data:type==="free"?{html:""}:type==="html"?{source:"",previewPolicy:"sandbox-web",exportFormat:"html"}:type==="regex"?makeRegexData():type==="pdf"?makePdfData():type==="lorebook"?makeLoreData():type==="log"?{content:"",templateId:"system-ink-frame",personaName:"",personaAlias:"",templateSnapshot:null}:(type==="persona"||type==="character")?{mode:characterModeOption,activeId:null,pages:[makeCharacterPage()],cardTypeVersion:3,cardVariant:characterVariant||"lumi",displayStyle:"image"}:type==="idea"?makeIdeaBoardData():{}};st.notes.push(n);await put("notes",n);const p=getProject(projectId);if(p)await saveProject(p);st.curNoteId=n.id;return n;}
+  function showTypePicker(presetPid){const icon=(paths)=>`<svg viewBox="0 0 24 24">${paths}</svg>`,card=(type,mode,title,desc,ico,variant)=>`<button type="button" class="type-card" data-create-type="${type}"${mode?` data-character-mode="${mode}"`:""}${variant?` data-card-variant="${variant}"`:""}><div class="tc-ico">${ico}</div><div><div class="tc-name">${title}</div><div class="tc-desc">${desc}</div></div></button>`,icons={persona:icon('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),people:icon('<circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="10" r="2.4"/><path d="M3.5 21a6.2 6.2 0 0 1 11 0"/><path d="M13 20.5a4.5 4.5 0 0 1 7.5 0"/>'),lore:icon('<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7"/>'),html:icon('<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/><path d="M13 4l-2 16"/>'),regex:icon('<path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/>'),pdf:icon('<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/>'),free:icon('<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>'),log:icon('<path d="M4 4h16v16H4z"/><path d="M7 8h10M7 12h7M7 16h9"/><path d="M4 7h16"/>'),idea:icon('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 16.5l2.4-5.8 2.3 4.2 1.5-2.2 2.8 3.8"/><circle cx="15.8" cy="8.2" r="1.5"/><path d="M7 7.5h4"/>')};openModal(`<div class="type-picker-modal"><h3>새 메모</h3><p class="m-sub">생성할 메모 타입을 골라주세요</p><button type="button" class="type-quick-free" data-create-type="free" aria-label="자유 메모 만들기"><span class="tqf-icon">${icons.free}</span><span class="tqf-copy"><span class="tqf-eyebrow">QUICK NOTE</span><span class="tqf-title">자유 메모</span><span class="tqf-sub">서식 보존 편집기로 바로 시작하기</span></span><span class="tqf-arrow">${icon('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></button><div class="type-picker-tabs" role="tablist"><button type="button" class="type-picker-tab active" data-type-tab="character" role="tab">캐릭터</button><button type="button" class="type-picker-tab" data-type-tab="studio" role="tab">작업실</button><button type="button" class="type-picker-tab" data-type-tab="atelier" role="tab">아뜰리에</button></div><div class="type-picker-pane active" data-type-pane="character" role="tabpanel"><div class="type-pane-caption">Character cards</div>${card("character","single","캐릭터","신규 카드 · 이미지형/텍스트형 전환",icons.persona,"lucy")}${card("character","collection","다인 캐릭터","여러 인물을 한 카드 묶음으로 관리",icons.people,"lucy")}<div class="type-pane-caption" style="margin-top:16px">Lumi legacy cards</div>${card("character","single","루미 캐릭터","기존 이미지 카드 레이아웃 호환",icons.persona,"lumi")}${card("character","collection","루미 다인 캐릭터","기존 다인 캐릭터 레이아웃 호환",icons.people,"lumi")}${card("persona","single","페르소나","단일 페르소나 카드",icons.persona)}${card("persona","collection","다인 페르소나","여러 페르소나 카드",icons.people)}</div><div class="type-picker-pane" data-type-pane="studio" role="tabpanel" hidden><div class="type-pane-caption">Writing tools</div>${card("lorebook","","로어북","마크다운 · 키워드 · World Info 내보내기",icons.lore)}${card("html","","코드 작업실","원본 코드 보존 · 샌드박스 미리보기",icons.html)}${card("regex","","정규식 작업실","IN 검증 · OUT HTML 미리보기",icons.regex)}${card("pdf","","PDF 작업실","PDF 열기 · 메모 편집 · 내보내기",icons.pdf)}</div><div class="type-picker-pane" data-type-pane="atelier" role="tabpanel" hidden><div class="type-pane-caption">Creative atelier</div>${card("free","","자유 메모","서식 보존 · 이미지 · 코드 보기 지원",icons.free)}${card("log","","로그 저장","대화 로그 · 게시용 HTML 내보내기",icons.log)}${card("idea","","아이디어 보드","캔버스에 요소를 배치해 꾸미기",icons.idea)}</div><div class="m-row"><button class="m-btn" data-x="cancel">취소</button></div></div>`);const box=$("modalBox"),selectTab=(name)=>{box.querySelectorAll(".type-picker-tab").forEach((tab)=>{const on=tab.dataset.typeTab===name;tab.classList.toggle("active",on);tab.setAttribute("aria-selected",on?"true":"false");});box.querySelectorAll(".type-picker-pane").forEach((pane)=>{const on=pane.dataset.typePane===name;pane.classList.toggle("active",on);pane.hidden=!on;});};box.querySelectorAll(".type-picker-tab").forEach((tab)=>tab.addEventListener("click",()=>selectTab(tab.dataset.typeTab)));box.querySelectorAll("[data-create-type]").forEach((button)=>button.addEventListener("click",()=>{const {type,options}=typePickerOptions(button),openCreated=()=>openCreatedNote(type);if(presetPid)createNote(type,presetPid,options).then(openCreated);else showProjectPicker(type,options);}));box.querySelector('[data-x="cancel"]').addEventListener("click",closeModal);}
+  function noteTypeLabel(n){if(n&&n.type==="character"){const d=ensureCharacterData(n);return d.cardVariant==="lucy"?(d.mode==="single"?"캐릭터":"다인 캐릭터"):(d.mode==="single"?"루미 캐릭터":"루미 다인 캐릭터");}return TYPE_LABEL[visualMemoType(n)]||(n&&n.type)||"";}
+  function noteTypeShortLabel(n){if(n&&n.type==="character")return noteTypeLabel(n);const type=visualMemoType(n);return ({free:"자유메모",html:"HTML",regex:"정규식",pdf:"PDF",lorebook:"로어북",log:"로그",persona:"페르소나",idea:"아이디어 보드"})[type]||noteTypeLabel(n);}
+
+  // Backup/snapshot bodies carry both independent quick-menu configurations.
+  async function exportBackup(){try{const files=await getAll("files"),fileRecs=[];for(const f of files){try{fileRecs.push({id:f.id,noteId:f.noteId,name:f.name,type:f.type,size:f.size,createdAt:f.createdAt,data:await blobToBase64(f.blob)});}catch(e){}}const payload={app:"lumink",version:5,exportedAt:now(),projects:st.projects,notes:st.notes,files:fileRecs,quickMenu:jsonCopy(quickMenuConfig("memo")),diaryQuickMenu:jsonCopy(quickMenuConfig("diary")),diary:jsonCopy(diaryConfig()),appearance:appearanceSnapshot()};const json=JSON.stringify(payload).replace(/</g,"\\u003c"),summary=st.projects.map((p)=>{const ns=st.notes.filter((n)=>n.projectId===p.id);return `<section><h2>${esc(p.name)}</h2>${p.description?`<p class="d">${esc(p.description)}</p>`:""}<p class="c">메모 ${ns.length}개</p><ul>${ns.map((n)=>`<li>${esc(n.title||"(제목 없음)")} <em>${esc(noteTypeLabel(n))}</em></li>`).join("")}</ul></section>`;}).join("");const doc=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>루시잉크 백업 ${new Date().toLocaleDateString("ko")}</title><style>body{font-family:-apple-system,"Noto Sans KR",sans-serif;max-width:720px;margin:0 auto;padding:34px 20px;line-height:1.6;color:#1c1b19;background:#faf9f7}h1{font-size:23px;margin:0 0 4px}h2{font-size:17px;margin:22px 0 6px;border-bottom:1px solid #e7e3da;padding-bottom:5px}em{color:#9a948a;font-style:normal;font-size:.82em;margin-left:4px}ul{margin:6px 0 0;padding-left:20px}li{margin:2px 0}.note{color:#a09a8f;font-size:13px}.d{color:#666;margin:2px 0}.c{color:#9a948a;font-size:13px;margin:2px 0}</style></head><body><h1>루시 ✦ 잉크 백업</h1><p class="note">${new Date().toLocaleString("ko")} · 프로젝트 ${st.projects.length}개 · 메모 ${st.notes.length}개 · 다이어리 ${diaryConfig().diaries.length}개</p>${summary}<p class="note" style="margin-top:26px">이 파일을 루시잉크 → 설정 → 백업 복원에서 가져오면 데이터가 복원됩니다.</p><script type="application/json" id="lumink-backup">${json}<\/script></body></html>`;downloadDoc(doc,`luci-ink-backup-${dateStamp()}.html`,"text/html");toast("백업을 저장했어요");}catch(e){toast("백업에 실패했어요");}}
+  async function doAutoBackup(){autoBkLast=Date.now();try{const files=await getAll("files"),snapFiles=files.map((f)=>({id:f.id,noteId:f.noteId,name:f.name,type:f.type,size:f.size,createdAt:f.createdAt,blob:f.blob})),snap={id:"bk_"+autoBkLast,version:5,ts:autoBkLast,projects:JSON.parse(JSON.stringify(st.projects)),notes:JSON.parse(JSON.stringify(st.notes)),files:snapFiles,quickMenu:jsonCopy(quickMenuConfig("memo")),diaryQuickMenu:jsonCopy(quickMenuConfig("diary")),diary:jsonCopy(diaryConfig()),appearance:appearanceSnapshot()};await put("backups",snap);await pruneAutoBackups(getAutoBackupLimit());}catch(e){console.warn("autobackup",e);}}
 
   /* ---------- init ---------- */
   async function init() {

@@ -1,8 +1,8 @@
-﻿{
+{
     "name":  "루시잉크",
     "short_name":  "루시잉크",
     "description":  "창작을 위한 로컬 우선 메모, 작업실, 정규식, 로그, 인물 카드, 아이디어 보드 앱",
-    "version":  "1.7",
+    "version":  "0.7",
     "lang":  "ko",
     "dir":  "ltr",
     "start_url":  "./",
