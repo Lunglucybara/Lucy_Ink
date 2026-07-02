@@ -2127,87 +2127,402 @@
   .saver.dirty::before { background: var(--accent); box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 74%, transparent); }
   .saver.saved::before { background: #59d98b; box-shadow: 0 0 7px color-mix(in srgb, #59d98b 64%, transparent); }
 
-  /* ===== PDF workshop ===== */
-  .pdf-workshop { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; background:var(--paper); }
-  .pdf-toolbar {
-    display:flex; align-items:center; gap:8px; min-height:47px; padding:8px 11px;
-    border-bottom:1px solid var(--line); background:linear-gradient(180deg, color-mix(in srgb, var(--surface) 84%, var(--accent-soft)), var(--surface));
-    overflow-x:auto; scrollbar-width:none;
+  /* ===== PDF workshop — "제도판(Draft Table) · Lucid Drop" redesign ===== */
+  .pdf-workshop{
+    flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+    background:
+      radial-gradient(130% 80% at 50% -12%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 58%),
+      var(--paper);
+    /* local, theme-robust tokens */
+    --accent-ink: color-mix(in srgb, var(--accent) 78%, var(--ink));
+    --pdf-tray: color-mix(in srgb, var(--surface) 84%, var(--accent-soft) 16%);
+    --pdf-tray-line: color-mix(in srgb, var(--accent) 24%, var(--line));
+    --pdf-btn: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
+    --pdf-btn-hover: color-mix(in srgb, var(--accent-soft) 62%, var(--surface));
+    --pdf-drop: linear-gradient(150deg, color-mix(in srgb, white 58%, var(--accent)), var(--accent));
+    --pdf-drop-solid: radial-gradient(120% 120% at 30% 22%, color-mix(in srgb, white 52%, var(--accent)), color-mix(in srgb, var(--accent) 66%, #1a1030));
+    --pdf-sheet:
+      0 1px 2px rgba(18,26,52,.14),
+      0 12px 26px -10px rgba(18,26,52,.24),
+      0 34px 64px -26px color-mix(in srgb, var(--accent) 34%, rgba(18,26,52,.5));
   }
-  .pdf-toolbar::-webkit-scrollbar { display:none; }
-  .pdf-tool-btn, .pdf-page-step {
-    flex:0 0 auto; width:34px; height:34px; display:grid; place-items:center; border:1px solid var(--line); border-radius:9px;
-    background:var(--surface-2); color:var(--ink); cursor:pointer;
+
+  /* --- context strip: filename always in view --- */
+  .pdf-contextbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:9px; min-height:31px;
+    padding:8px 15px 7px; border-bottom:1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    background:linear-gradient(180deg,
+      color-mix(in srgb, var(--surface) 88%, var(--accent-soft)),
+      color-mix(in srgb, var(--surface) 96%, transparent));
   }
-  .pdf-tool-btn.active { background:var(--accent-soft); border-color:color-mix(in srgb, var(--accent) 52%, var(--line)); color:var(--accent-ink); }
-  .pdf-tool-btn:disabled, .pdf-page-step:disabled { opacity:.45; cursor:default; }
-  .pdf-tool-btn svg, .pdf-page-step svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-  .pdf-meta { min-width:170px; max-width:42vw; color:var(--muted); font-size:11px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pdf-page-control { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; padding:0 5px; border:1px solid var(--line); border-radius:10px; background:var(--surface); height:34px; }
-  .pdf-page-control input { width:50px; height:24px; border:0; background:transparent; color:var(--ink); font:700 12px/1 var(--user-font); text-align:center; outline:none; }
-  .pdf-page-control span { color:var(--muted); font-size:11px; font-weight:700; white-space:nowrap; }
-  .pdf-toolbar-sep { flex:0 0 auto; width:1px; height:24px; background:var(--line); }
-  .pdf-zoom { width:92px; accent-color:var(--accent); }
-  .pdf-stage { flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 260px; background:var(--bg); }
-  .pdf-viewer { min-width:0; min-height:0; position:relative; display:grid; place-items:center; overflow:auto; padding:18px; }
-  .pdf-empty, .pdf-loading {
-    width:min(420px, calc(100vw - 44px)); min-height:210px; display:grid; place-items:center; text-align:center; gap:12px; padding:24px;
-    border:1px dashed color-mix(in srgb, var(--accent) 42%, var(--line)); border-radius:14px; background:var(--surface); color:var(--muted);
+  .pdf-file-dot{
+    flex:0 0 auto; width:11px; height:11px; border-radius:52% 52% 52% 6px;
+    transform:rotate(45deg); background:var(--pdf-drop);
+    box-shadow: inset -1px -1px 2px color-mix(in srgb, var(--accent) 62%, transparent),
+                0 1px 3px color-mix(in srgb, var(--accent) 42%, transparent);
   }
-  .pdf-empty svg, .pdf-loading svg { width:42px; height:42px; fill:none; stroke:var(--accent); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .pdf-empty button, .pdf-panel button {
-    border:1px solid color-mix(in srgb, var(--accent) 48%, var(--line)); background:var(--accent-soft); color:var(--accent-ink);
-    border-radius:9px; padding:9px 12px; font:750 12px/1 var(--user-font); cursor:pointer;
+  .pdf-contextbar .pdf-meta{
+    flex:1 1 auto; min-width:0; max-width:none; color:var(--ink);
+    font-size:12px; font-weight:750; letter-spacing:.1px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
-  .pdf-canvas-shell { position:relative; display:grid; place-items:center; min-width:min-content; }
-  #pdfCanvas { display:block; max-width:none; background:#fff; box-shadow:0 16px 45px rgba(14,24,44,.28); border-radius:5px; }
-  .pdf-text-layer { position:absolute; inset:0; pointer-events:none; border-radius:5px; }
-  .pdf-textbox {
-    position:absolute; min-width:78px; min-height:44px; display:grid; grid-template-rows:18px 1fr;
-    border:1px solid color-mix(in srgb, var(--accent) 62%, transparent); border-radius:7px;
-    background:rgba(255,255,255,.72); box-shadow:0 8px 22px rgba(14,24,44,.18); overflow:hidden; pointer-events:auto;
+
+  /* --- tool row: grouped instrument pills --- */
+  .pdf-toolbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:9px; min-height:54px;
+    padding:9px 12px; overflow-x:auto; scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,
+      color-mix(in srgb, var(--surface) 76%, var(--accent-soft)),
+      var(--surface));
   }
-  .pdf-textbox-grip {
-    display:flex; align-items:center; justify-content:space-between; gap:6px; height:18px; padding:0 5px;
-    background:color-mix(in srgb, var(--accent-soft) 82%, white); color:var(--accent-ink);
-    font:800 9px/1 var(--user-font); cursor:grab; user-select:none;
+  .pdf-toolbar::-webkit-scrollbar{ display:none; }
+
+  .pdf-tool-group{
+    flex:0 0 auto; display:inline-flex; align-items:center; gap:3px; padding:3px;
+    border:1px solid var(--pdf-tray-line); border-radius:13px; background:var(--pdf-tray);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 50%, transparent),
+                0 1px 2px rgba(18,26,52,.06);
   }
-  .pdf-textbox-grip button { all:unset; width:16px; height:16px; display:grid; place-items:center; border-radius:5px; cursor:pointer; }
-  .pdf-textbox-grip button:hover { background:rgba(0,0,0,.08); }
-  .pdf-textbox textarea {
-    width:100%; height:100%; min-height:26px; border:0; background:transparent; color:#111827;
-    padding:6px 7px; resize:none; outline:none; font:600 13px/1.45 var(--user-font); overflow:auto;
+
+  .pdf-tool-btn, .pdf-page-step{
+    flex:0 0 auto; width:36px; height:36px; display:grid; place-items:center;
+    border:1px solid transparent; border-radius:10px;
+    background:transparent; color:var(--ink); cursor:pointer;
+    transition: background .16s, color .16s, box-shadow .16s, transform .1s, border-color .16s;
   }
-  .pdf-fallback-frame { width:min(100%, 980px); height:100%; min-height:580px; border:0; border-radius:9px; background:#fff; box-shadow:0 16px 45px rgba(14,24,44,.23); }
-  .pdf-panel { min-width:0; border-left:1px solid var(--line); background:var(--surface); display:flex; flex-direction:column; gap:12px; padding:13px; overflow:auto; }
-  .pdf-panel label { display:grid; gap:6px; color:var(--muted); font-size:11px; font-weight:750; }
-  .pdf-panel input, .pdf-panel textarea {
-    width:100%; border:1px solid var(--line); border-radius:9px; background:var(--surface-2); color:var(--ink);
-    padding:9px 10px; font:500 13px/1.45 var(--user-font); outline:none;
+  .pdf-tool-btn:hover, .pdf-page-step:hover{ background:var(--pdf-btn-hover); }
+  .pdf-tool-btn:active, .pdf-page-step:active{ transform:translateY(1px); }
+  .pdf-tool-btn.active{
+    background:var(--accent-soft); color:var(--accent-ink);
+    border-color:color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent),
+                0 2px 8px -2px color-mix(in srgb, var(--accent) 45%, transparent);
   }
-  .pdf-panel textarea { min-height:160px; resize:vertical; }
-  .pdf-panel .pdf-panel-actions { display:grid; gap:8px; margin-top:auto; }
-  .pdf-status { color:var(--faint); font-size:11px; line-height:1.45; }
-  .pdf-panel-section { display:grid; gap:8px; padding:10px; border:1px solid var(--line); border-radius:11px; background:color-mix(in srgb, var(--surface-2) 78%, transparent); }
-  .pdf-panel-title { display:flex; justify-content:space-between; align-items:center; gap:8px; color:var(--muted); font:850 11px/1.2 var(--user-font); }
-  .pdf-edit-toggle { display:flex !important; grid-template-columns:none !important; align-items:center; gap:8px; }
-  .pdf-edit-toggle input { width:16px !important; height:16px; padding:0; accent-color:var(--accent); }
-  .pdf-edit-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
-  .pdf-page-list { display:grid; gap:6px; max-height:220px; overflow:auto; padding-right:2px; }
-  .pdf-page-row {
-    display:grid; grid-template-columns:20px minmax(0,1fr) auto; align-items:center; gap:7px; min-height:34px;
-    padding:6px 7px; border:1px solid var(--line); border-radius:9px; background:var(--surface); color:var(--ink);
-    font:700 11px/1.25 var(--user-font); cursor:pointer;
+  .pdf-tool-btn:disabled, .pdf-page-step:disabled{ opacity:.4; cursor:default; }
+  .pdf-tool-btn svg, .pdf-page-step svg{
+    width:19px; height:19px; fill:none; stroke:currentColor;
+    stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
   }
-  .pdf-page-row.active { border-color:color-mix(in srgb, var(--accent) 62%, var(--line)); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent); }
-  .pdf-page-row input { width:16px !important; height:16px; padding:0; accent-color:var(--accent); }
-  .pdf-page-row span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pdf-page-row small { color:var(--faint); font-size:10px; white-space:nowrap; }
-  @media(max-width:820px){
-    .pdf-stage{grid-template-columns:1fr; grid-template-rows:minmax(0,1fr) auto;}
-    .pdf-panel{border-left:0;border-top:1px solid var(--line);max-height:34dvh;}
-    .pdf-meta{max-width:35vw;}
-    .pdf-fallback-frame{min-height:460px;}
+
+  /* page counter */
+  .pdf-page-control{
+    flex:0 0 auto; display:inline-flex; align-items:center; gap:3px; height:34px; padding:0 9px;
+    border:1px solid color-mix(in srgb, var(--accent) 20%, var(--line)); border-radius:9px;
+    background:var(--surface);
+  }
+  .pdf-page-control input{
+    width:34px; height:24px; border:0; background:transparent; color:var(--ink);
+    font:800 13px/1 var(--user-font); text-align:center; outline:none; -moz-appearance:textfield;
+  }
+  .pdf-page-control input::-webkit-outer-spin-button,
+  .pdf-page-control input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .pdf-page-control span{ color:var(--muted); font-size:11.5px; font-weight:800; white-space:nowrap; }
+
+  /* zoom */
+  .pdf-zoom-pill{ flex:0 0 auto; display:inline-flex; align-items:center; gap:9px; height:34px; padding:0 10px 0 8px; }
+  .pdf-zoom{
+    width:96px; height:5px; -webkit-appearance:none; appearance:none; border-radius:999px; outline:none;
+    background:linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 28%, var(--line)));
+  }
+  .pdf-zoom::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:#fff; border:2px solid var(--accent); box-shadow:0 1px 4px rgba(18,26,52,.3); cursor:pointer;
+  }
+  .pdf-zoom::-moz-range-thumb{
+    width:15px; height:15px; border-radius:50%;
+    background:#fff; border:2px solid var(--accent); box-shadow:0 1px 4px rgba(18,26,52,.3); cursor:pointer;
+  }
+  .pdf-zoom-label{ min-width:40px; text-align:right; color:var(--accent-ink); font:800 11.5px/1 var(--user-font); }
+
+  /* --- stage --- */
+  .pdf-stage{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 290px; background:var(--bg); }
+  .pdf-viewer{
+    position:relative; min-width:0; min-height:0; display:grid; place-items:center; overflow:auto; padding:26px 22px;
+    background:
+      radial-gradient(150% 120% at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 55%),
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 0) 0 0/18px 18px,
+      var(--bg);
+  }
+
+  /* empty / loading */
+  .pdf-empty, .pdf-loading{
+    width:min(430px, calc(100vw - 44px)); min-height:230px;
+    display:grid; place-items:center; align-content:center; gap:16px; text-align:center; padding:32px 28px;
+    border-radius:20px; color:var(--muted);
+    background:linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, var(--accent-soft)), var(--surface));
+    border:1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+    box-shadow: 0 1px 2px rgba(18,26,52,.05),
+                0 20px 44px -22px color-mix(in srgb, var(--accent) 32%, rgba(18,26,52,.4));
+  }
+  .pdf-empty-art{
+    width:66px; height:66px; display:grid; place-items:center;
+    border-radius:52% 52% 52% 10px; transform:rotate(0deg);
+    background:var(--pdf-drop-solid);
+    box-shadow: inset 0 2px 7px rgba(255,255,255,.4),
+                0 10px 22px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .pdf-empty-art svg{ width:31px; height:31px; fill:none; stroke:#fff; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .pdf-empty-text{ display:grid; gap:5px; }
+  .pdf-empty-text strong{ color:var(--ink); font-size:15px; font-weight:800; letter-spacing:.1px; }
+  .pdf-empty-text span{ color:var(--muted); font-size:12px; line-height:1.5; }
+
+  .pdf-loading svg{ width:40px; height:40px; fill:none; stroke:var(--accent); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; animation:pdfSpin 1s linear infinite; }
+  .pdf-loading span{ color:var(--muted); font-size:12.5px; font-weight:700; }
+  @keyframes pdfSpin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ .pdf-loading svg{ animation-duration:2.4s; } }
+
+  /* primary emphasis button (empty CTA + export) — theme-robust, no white-on-accent */
+  .pdf-empty button, #pdfPanelExport{
+    border:1.5px solid color-mix(in srgb, var(--accent) 58%, var(--line));
+    background:linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 78%, var(--surface)), var(--accent-soft));
+    color:var(--accent-ink); border-radius:12px; padding:12px 22px;
+    font:800 13px/1 var(--user-font); cursor:pointer;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 45%, transparent),
+                0 3px 12px -3px color-mix(in srgb, var(--accent) 42%, transparent);
+    transition: transform .12s, box-shadow .16s, filter .16s, background .16s;
+  }
+  .pdf-empty button:hover, #pdfPanelExport:hover{
+    filter:brightness(1.02);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 45%, transparent),
+                0 5px 16px -3px color-mix(in srgb, var(--accent) 52%, transparent);
+  }
+  .pdf-empty button:active, #pdfPanelExport:active{ transform:translateY(1px); }
+
+  /* canvas "sheet" with pinned teardrop tab */
+  .pdf-canvas-shell{ position:relative; display:grid; place-items:center; min-width:min-content; padding:2px; }
+  #pdfCanvas{ display:block; max-width:none; background:#fff; border-radius:3px; box-shadow:var(--pdf-sheet); }
+  .pdf-canvas-shell::before{
+    content:""; position:absolute; inset:-1px; border-radius:5px; pointer-events:none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 9%, transparent);
+  }
+  .pdf-canvas-shell::after{
+    content:""; position:absolute; top:-8px; left:16px; width:15px; height:15px;
+    border-radius:52% 52% 52% 6px; transform:rotate(45deg); background:var(--pdf-drop);
+    box-shadow: 0 2px 7px -1px color-mix(in srgb, var(--accent) 55%, transparent),
+                inset -1px -1px 2px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .pdf-text-layer{ position:absolute; inset:0; pointer-events:none; border-radius:3px; }
+  .pdf-textbox{
+    position:absolute; min-width:84px; min-height:48px; display:grid; grid-template-rows:20px 1fr;
+    border:1.5px dashed color-mix(in srgb, var(--accent) 60%, transparent); border-radius:9px;
+    background:color-mix(in srgb, white 82%, var(--accent-soft));
+    box-shadow:0 10px 26px -8px rgba(18,26,52,.28); overflow:hidden; pointer-events:auto;
+  }
+  .pdf-textbox:focus-within{
+    border-style:solid;
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent), 0 12px 30px -8px rgba(18,26,52,.3);
+  }
+  .pdf-textbox-grip{
+    display:flex; align-items:center; justify-content:space-between; gap:6px; height:20px; padding:0 6px;
+    background:color-mix(in srgb, var(--accent) 20%, var(--surface)); color:var(--accent-ink);
+    font:800 9.5px/1 var(--user-font); letter-spacing:.3px; cursor:grab; user-select:none;
+    border-bottom:1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .pdf-textbox-grip button{
+    all:unset; width:16px; height:16px; display:grid; place-items:center; border-radius:5px;
+    cursor:pointer; color:var(--accent-ink); font-size:13px; line-height:1;
+  }
+  .pdf-textbox-grip button:hover{ background:color-mix(in srgb, var(--accent) 22%, transparent); }
+  .pdf-textbox textarea{
+    width:100%; height:100%; min-height:26px; border:0; background:transparent; color:#1a2233;
+    padding:7px 8px; resize:none; outline:none; font:600 13px/1.5 var(--user-font); overflow:auto;
+  }
+
+  .pdf-fallback-frame{
+    width:min(100%, 980px); height:100%; min-height:580px; border:0; border-radius:12px;
+    background:#fff; box-shadow:var(--pdf-sheet);
+  }
+
+  /* --- side panel: composition desk --- */
+  .pdf-panel{
+    min-width:0; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:12px;
+    padding:15px 14px; overflow:auto;
+    background:linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 92%, var(--accent-soft)));
+  }
+  .pdf-panel-grip{ display:none; }
+  .pdf-panel > label{ display:grid; gap:6px; color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.2px; }
+  .pdf-panel input, .pdf-panel textarea{
+    width:100%; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); color:var(--ink);
+    padding:10px 11px; font:500 13px/1.5 var(--user-font); outline:none;
+    transition:border-color .16s, box-shadow .16s;
+  }
+  .pdf-panel input:focus, .pdf-panel textarea:focus{
+    border-color:color-mix(in srgb, var(--accent) 55%, var(--line));
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .pdf-panel textarea{ min-height:96px; resize:vertical; }
+
+  .pdf-status{ color:var(--faint); font-size:11px; line-height:1.5; display:flex; align-items:center; gap:7px; padding:0 2px; }
+  .pdf-status::before{
+    content:""; flex:0 0 auto; width:6px; height:6px; border-radius:50%;
+    background:color-mix(in srgb, var(--accent) 60%, var(--line));
+    box-shadow:0 0 6px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .pdf-panel-section{
+    display:grid; gap:10px; padding:12px 12px 12px 14px; position:relative; overflow:hidden;
+    border:1px solid var(--line); border-radius:14px;
+    background:color-mix(in srgb, var(--surface) 82%, transparent);
+  }
+  .pdf-panel-section::before{
+    content:""; position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:2px;
+    background:linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 25%, transparent));
+  }
+  .pdf-panel-title{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    color:var(--ink); font:850 12px/1.2 var(--user-font);
+  }
+  .pdf-panel-title small{
+    color:var(--accent-ink); font-weight:800; font-size:10.5px; padding:2px 9px; border-radius:999px;
+    background:var(--accent-soft); border:1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    white-space:nowrap;
+  }
+
+  .pdf-edit-toggle{
+    display:flex !important; grid-template-columns:none !important; align-items:center; gap:10px;
+    padding:9px 11px; border:1px solid var(--line); border-radius:11px; background:var(--surface-2);
+    color:var(--ink) !important; font-weight:750 !important; font-size:12px; cursor:pointer; letter-spacing:0;
+  }
+  .pdf-edit-toggle input{ width:17px !important; height:17px; padding:0; accent-color:var(--accent); }
+
+  .pdf-edit-actions{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+
+  .pdf-panel button{
+    border:1px solid var(--line); border-radius:10px; padding:10px 11px;
+    font:750 12px/1 var(--user-font); cursor:pointer; color:var(--ink); background:var(--pdf-btn);
+    transition:background .15s, border-color .15s, color .15s, transform .1s, box-shadow .15s;
+  }
+  .pdf-panel button:hover{
+    background:var(--pdf-btn-hover);
+    border-color:color-mix(in srgb, var(--accent) 32%, var(--line));
+  }
+  .pdf-panel button:active{ transform:translateY(1px); }
+
+  /* destructive action clearly marked */
+  #pdfDeletePages{
+    color:var(--danger); border-color:color-mix(in srgb, var(--danger) 32%, var(--line));
+    background:color-mix(in srgb, var(--danger) 8%, var(--surface));
+  }
+  #pdfDeletePages:hover{ color:#fff; background:var(--danger); border-color:var(--danger); }
+
+  /* page list */
+  .pdf-page-list{ display:grid; gap:7px; max-height:230px; overflow:auto; padding:2px; margin:-2px; }
+  .pdf-page-row{
+    display:grid; grid-template-columns:18px minmax(0,1fr) auto; align-items:center; gap:9px; min-height:40px;
+    padding:8px 10px; border:1px solid var(--line); border-radius:11px; background:var(--surface); color:var(--ink);
+    font:750 12px/1.25 var(--user-font); cursor:pointer;
+    transition:border-color .14s, box-shadow .14s, transform .1s, background .14s;
+  }
+  .pdf-page-row:hover{
+    border-color:color-mix(in srgb, var(--accent) 34%, var(--line)); transform:translateX(1px);
+    box-shadow:0 2px 8px -3px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .pdf-page-row.active{
+    border-color:color-mix(in srgb, var(--accent) 60%, var(--line));
+    background:color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent),
+               0 3px 10px -4px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .pdf-page-row input{ width:16px !important; height:16px; padding:0; accent-color:var(--accent); cursor:pointer; }
+  .pdf-page-row span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:800; }
+  .pdf-page-row small{
+    color:var(--faint); font-size:10px; font-weight:700; white-space:nowrap; padding:2px 8px; border-radius:999px;
+    background:color-mix(in srgb, var(--surface-2) 82%, transparent);
+  }
+
+  .pdf-panel-actions{ display:grid; gap:8px; margin-top:auto; padding-top:12px; border-top:1px dashed var(--line); }
+
+  /* --- edit mode: draggable thumbnail grid --- */
+  .pdf-page-list.is-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(82px, 1fr)); gap:10px;
+    max-height:min(46dvh, 340px); overflow:auto; padding:4px; margin:-4px;
+  }
+  .pdf-thumb-cell{
+    position:relative; display:flex; flex-direction:column; gap:5px; cursor:pointer;
+    user-select:none; -webkit-user-select:none;
+  }
+  .pdf-thumb-frame{
+    position:relative; aspect-ratio:3/4; border-radius:10px; overflow:hidden;
+    border:1px solid var(--line); background:var(--surface-2);
+    box-shadow:0 2px 8px -4px rgba(18,26,52,.3);
+    transition:border-color .14s, box-shadow .14s, outline-color .14s;
+  }
+  .pdf-thumb-cell:hover .pdf-thumb-frame{
+    border-color:color-mix(in srgb, var(--accent) 34%, var(--line));
+    box-shadow:0 5px 14px -5px color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+  .pdf-thumb-cell.active .pdf-thumb-frame{
+    border-color:color-mix(in srgb, var(--accent) 62%, var(--line));
+    box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent),
+               0 5px 14px -5px color-mix(in srgb, var(--accent) 42%, transparent);
+  }
+  .pdf-thumb-cell.selected .pdf-thumb-frame{ outline:2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset:-2px; }
+  .pdf-thumb-img{
+    position:absolute; inset:0; display:grid; place-items:center;
+    background:#fff center/cover no-repeat;
+  }
+  .pdf-thumb-blank{ font:800 9px/1.3 var(--user-font); color:var(--faint); text-align:center; }
+  .pdf-thumb-spin{
+    width:17px; height:17px; border-radius:50%;
+    border:2px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-top-color:var(--accent);
+    animation:pdfSpin .8s linear infinite;
+  }
+  .pdf-thumb-handle{
+    position:absolute; top:4px; left:4px; width:23px; height:23px; display:grid; place-items:center;
+    border:0; border-radius:7px; cursor:grab; color:#fff; z-index:3; padding:0;
+    background:color-mix(in srgb, #141a28 60%, transparent); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+    opacity:.9; touch-action:none; transition:background .14s, opacity .14s;
+  }
+  .pdf-thumb-handle:hover{ opacity:1; background:color-mix(in srgb, var(--accent) 72%, #141a28); }
+  .pdf-thumb-handle:active{ cursor:grabbing; }
+  .pdf-thumb-handle svg{ width:15px; height:15px; fill:currentColor; stroke:none; }
+  .pdf-thumb-check{
+    position:absolute; top:4px; right:4px; width:24px; height:24px; display:grid; place-items:center;
+    border-radius:7px; z-index:3; background:color-mix(in srgb, #141a28 52%, transparent);
+    -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+  }
+  .pdf-thumb-check input{ width:15px; height:15px; margin:0; accent-color:var(--accent); cursor:pointer; }
+  .pdf-thumb-meta{ display:flex; align-items:center; justify-content:space-between; gap:5px; padding:0 2px; }
+  .pdf-thumb-num{
+    font:800 11px/1 var(--user-font); color:var(--ink);
+    min-width:17px; height:17px; display:grid; place-items:center; padding:0 4px; border-radius:6px;
+    background:var(--accent-soft);
+  }
+  .pdf-thumb-cell.active .pdf-thumb-num{ color:var(--accent-ink); }
+  .pdf-thumb-meta small{ font:700 9px/1 var(--user-font); color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .pdf-thumb-cell.dragging{ opacity:.34; }
+  .pdf-thumb-cell.drag-over-before::before, .pdf-thumb-cell.drag-over-after::before{
+    content:""; position:absolute; top:2px; bottom:26px; width:3px; border-radius:3px; z-index:4;
+    background:var(--accent); box-shadow:0 0 8px color-mix(in srgb, var(--accent) 62%, transparent);
+  }
+  .pdf-thumb-cell.drag-over-before::before{ left:-6px; }
+  .pdf-thumb-cell.drag-over-after::before{ right:-6px; }
+  .pdf-thumb-ghost{
+    position:fixed; z-index:9999; margin:0; pointer-events:none; opacity:.94; width:96px;
+    transform:rotate(2.5deg) scale(1.04); border-radius:10px;
+    box-shadow:0 20px 44px -12px rgba(18,26,52,.5);
+  }
+  .pdf-thumb-ghost .pdf-thumb-handle, .pdf-thumb-ghost .pdf-thumb-check, .pdf-thumb-ghost .pdf-thumb-meta{ display:none; }
+  .pdf-thumb-ghost .pdf-thumb-frame{ aspect-ratio:3/4; }
+
+  @media(max-width:860px){
+    .pdf-page-list.is-grid{ grid-template-columns:repeat(auto-fill, minmax(76px, 1fr)); max-height:34dvh; }
+    .pdf-stage{ grid-template-columns:1fr; grid-template-rows:minmax(0,1fr) auto; }
+    .pdf-panel{
+      border-left:0; border-top:1px solid var(--line); max-height:42dvh;
+      border-radius:18px 18px 0 0; box-shadow:0 -8px 24px -14px rgba(18,26,52,.3);
+    }
+    .pdf-panel-grip{
+      display:block; width:40px; height:4px; border-radius:999px; margin:-4px auto 4px;
+      background:color-mix(in srgb, var(--accent) 30%, var(--line));
+    }
+    .pdf-viewer{ padding:20px 16px; }
+    .pdf-page-list{ max-height:180px; }
+    .pdf-fallback-frame{ min-height:460px; }
   }
 
   /* ===== FAB ===== */
@@ -4650,6 +4965,8 @@
 
 /* ============================================================
    Lucy Ink v0.7 — separated settings / diary quick menu / text cards
+   Lucy Ink v0.7.1 — PDF 작업실 재디자인 (제도판 · Lucid Drop)
+   Lucy Ink v0.7.2 — PDF 편집 모드 썸네일 그리드 + 드래그 재정렬
    ============================================================ */
 .settings-mode-tabs{position:sticky;top:0;z-index:8;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 16px;padding:10px 10px 9px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid color-mix(in srgb,var(--line) 72%,transparent)}
 .settings-mode-tab{min-height:52px;border:1px solid var(--line);border-radius:15px;background:var(--surface);color:var(--muted);font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:8px 11px;transition:.18s ease;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
@@ -5000,29 +5317,42 @@
       <button class="iconbtn" id="pdfMore" aria-label="더보기"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
     </div>
     <div class="pdf-workshop">
-      <div class="pdf-toolbar">
+      <div class="pdf-contextbar">
+        <span class="pdf-file-dot" aria-hidden="true"></span>
         <span class="pdf-meta" id="pdfMeta">PDF 없음</span>
-        <span class="pdf-toolbar-sep"></span>
-        <button class="pdf-page-step" id="pdfPrev" type="button" aria-label="이전 페이지"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <label class="pdf-page-control"><input id="pdfPage" type="number" min="1" value="1" inputmode="numeric" aria-label="페이지"><span id="pdfPageTotal">/ 1</span></label>
-        <button class="pdf-page-step" id="pdfNext" type="button" aria-label="다음 페이지"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
-        <span class="pdf-toolbar-sep"></span>
-        <button class="pdf-tool-btn" id="pdfRotateLeft" type="button" aria-label="왼쪽으로 회전"><svg viewBox="0 0 24 24"><path d="M4 7v6h6"/><path d="M5.5 13A7 7 0 1 0 8 5.7"/></svg></button>
-        <button class="pdf-tool-btn" id="pdfRotateRight" type="button" aria-label="오른쪽으로 회전"><svg viewBox="0 0 24 24"><path d="M20 7v6h-6"/><path d="M18.5 13A7 7 0 1 1 16 5.7"/></svg></button>
-        <input class="pdf-zoom" id="pdfZoom" type="range" min="60" max="220" step="10" value="120" aria-label="확대">
-        <span class="pdf-meta" id="pdfZoomLabel">120%</span>
-        <span class="pdf-toolbar-sep"></span>
-        <button class="pdf-tool-btn" id="pdfEditToggle" type="button" aria-label="페이지 편집 모드" title="페이지 편집 모드"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></button>
-        <button class="pdf-tool-btn" id="pdfAddText" type="button" aria-label="텍스트박스 추가" title="텍스트박스 추가"><svg viewBox="0 0 24 24"><path d="M4 5h16M12 5v14"/><path d="M8 19h8"/></svg></button>
-        <button class="pdf-tool-btn" id="pdfMergeFile" type="button" aria-label="PDF 추가 병합" title="PDF 추가 병합"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h4"/><path d="M9 15h6M12 12v6"/></svg></button>
-        <button class="pdf-tool-btn" id="pdfBlankPage" type="button" aria-label="빈 페이지 추가" title="빈 페이지 추가"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4"/><path d="M12 11v6M9 14h6"/></svg></button>
-        <span class="pdf-toolbar-sep"></span>
-        <button class="pdf-tool-btn" id="pdfReload" type="button" aria-label="다시 렌더링"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg></button>
+      </div>
+      <div class="pdf-toolbar">
+        <div class="pdf-tool-group" role="group" aria-label="페이지 이동">
+          <button class="pdf-page-step" id="pdfPrev" type="button" aria-label="이전 페이지"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <label class="pdf-page-control"><input id="pdfPage" type="number" min="1" value="1" inputmode="numeric" aria-label="페이지"><span id="pdfPageTotal">/ 1</span></label>
+          <button class="pdf-page-step" id="pdfNext" type="button" aria-label="다음 페이지"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="pdf-tool-group" role="group" aria-label="보기">
+          <button class="pdf-tool-btn" id="pdfRotateLeft" type="button" aria-label="왼쪽으로 회전" title="왼쪽으로 회전"><svg viewBox="0 0 24 24"><path d="M4 7v6h6"/><path d="M5.5 13A7 7 0 1 0 8 5.7"/></svg></button>
+          <button class="pdf-tool-btn" id="pdfRotateRight" type="button" aria-label="오른쪽으로 회전" title="오른쪽으로 회전"><svg viewBox="0 0 24 24"><path d="M20 7v6h-6"/><path d="M18.5 13A7 7 0 1 1 16 5.7"/></svg></button>
+          <div class="pdf-zoom-pill">
+            <input class="pdf-zoom" id="pdfZoom" type="range" min="60" max="220" step="10" value="120" aria-label="확대">
+            <span class="pdf-zoom-label" id="pdfZoomLabel">120%</span>
+          </div>
+        </div>
+        <div class="pdf-tool-group" role="group" aria-label="편집 도구">
+          <button class="pdf-tool-btn" id="pdfEditToggle" type="button" aria-label="페이지 편집 모드" title="페이지 편집 모드"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></button>
+          <button class="pdf-tool-btn" id="pdfAddText" type="button" aria-label="텍스트박스 추가" title="텍스트박스 추가"><svg viewBox="0 0 24 24"><path d="M4 5h16M12 5v14"/><path d="M8 19h8"/></svg></button>
+          <button class="pdf-tool-btn" id="pdfMergeFile" type="button" aria-label="PDF 추가 병합" title="PDF 추가 병합"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h4"/><path d="M9 15h6M12 12v6"/></svg></button>
+          <button class="pdf-tool-btn" id="pdfBlankPage" type="button" aria-label="빈 페이지 추가" title="빈 페이지 추가"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4"/><path d="M12 11v6M9 14h6"/></svg></button>
+        </div>
+        <div class="pdf-tool-group" role="group" aria-label="새로고침">
+          <button class="pdf-tool-btn" id="pdfReload" type="button" aria-label="다시 렌더링" title="다시 렌더링"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg></button>
+        </div>
       </div>
       <div class="pdf-stage">
         <div class="pdf-viewer" id="pdfViewer">
           <div class="pdf-empty" id="pdfEmpty">
-            <svg viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+            <div class="pdf-empty-art" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/></svg></div>
+            <div class="pdf-empty-text">
+              <strong>PDF를 불러와 작업을 시작하세요</strong>
+              <span>페이지 회전·병합·텍스트 삽입까지 한 곳에서.</span>
+            </div>
             <button type="button" id="pdfPickFirst">PDF 선택</button>
           </div>
           <div class="pdf-loading" id="pdfLoading" hidden>
@@ -5033,6 +5363,7 @@
           <iframe class="pdf-fallback-frame" id="pdfFallbackFrame" title="PDF 미리보기" hidden></iframe>
         </div>
         <aside class="pdf-panel">
+          <div class="pdf-panel-grip" aria-hidden="true"></div>
           <label>파일 이름<input id="pdfFileName" maxlength="120" placeholder="PDF 파일 이름"></label>
           <label>작업 메모<textarea id="pdfMemo" placeholder="페이지 확인 내용이나 편집 메모"></textarea></label>
           <div class="pdf-status" id="pdfStatus">PDF.js 대기</div>

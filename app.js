@@ -3154,6 +3154,7 @@
   const PDFLIB_LOCAL_SRC = "./pdf-lib.min.js";
   const PDFLIB_CDN_SRC = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js";
   let pdfEditLibPromise = null, pdfEditLoadedDocs = new Map(), pdfEditObjectUrls = new Map(), pdfTextDrag = null;
+  let pdfThumbCache = new Map(), pdfThumbGen = 0, pdfThumbDrag = null, pdfThumbDragMoved = false;
 
   function makePdfData() {
     return { attachments: [], pages: [], currentPage: 1, pageCount: 0, zoom: 1.2, rotation: 0, memo: "", editMode: false, selectedPages: [] };
@@ -3262,6 +3263,7 @@
   function clearPdfEditCaches() {
     pdfEditLoadedDocs.forEach((doc) => { if (doc && doc.destroy) { try { doc.destroy(); } catch (e) {} } });
     pdfEditLoadedDocs.clear();
+    pdfThumbCache.clear(); pdfThumbGen++;
     pdfEditObjectUrls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (e) {} });
     pdfEditObjectUrls.clear();
     try { revokePdfObjectUrl(); } catch (e) {}
@@ -3305,14 +3307,148 @@
     try { pageCount = await pdfPageCountFromBlob(file); } catch (e) {}
     return { attachment, pages: pdfPagesForAttachment(attachment, pageCount) };
   }
+  function pdfPageSourceLabel(page) { return page.kind === "blank" ? "빈 페이지" : `원본 ${page.sourcePage}`; }
+  function pdfGridSignature(d) { return (d.editMode ? "G" : "L") + "|" + d.pages.map((p) => p.id).join(","); }
   function renderPdfPageList(d) {
     const list = $("pdfPageList"); if (!list) return;
     const selected = new Set(d.selectedPages || []);
-    if (!d.pages.length) { list.innerHTML = '<div class="pdf-status">페이지가 없습니다.</div>'; return; }
+    if (!d.pages.length) { list.classList.remove("is-grid"); list.dataset.sig = ""; list.innerHTML = '<div class="pdf-status">페이지가 없습니다.</div>'; return; }
+
+    // --- list mode (compact rows) ---
+    if (!d.editMode) {
+      list.classList.remove("is-grid");
+      list.innerHTML = d.pages.map((page, index) => {
+        return `<div class="pdf-page-row ${index + 1 === d.currentPage ? "active" : ""}" data-pdf-page-index="${index}"><input type="checkbox" ${selected.has(page.id) ? "checked" : ""} aria-label="${index + 1}페이지 선택"><span>${index + 1}페이지</span><small>${pdfPageSourceLabel(page)}</small></div>`;
+      }).join("");
+      list.dataset.sig = pdfGridSignature(d);
+      return;
+    }
+
+    // --- grid mode (draggable thumbnails) ---
+    list.classList.add("is-grid");
+    const sig = pdfGridSignature(d);
+    if (list.dataset.sig === sig && list.children.length === d.pages.length) {
+      // same structure → refresh only state (no thumbnail re-request, no flicker, safe mid-drag)
+      d.pages.forEach((page, index) => {
+        const cell = list.children[index]; if (!cell) return;
+        cell.dataset.pdfPageIndex = String(index);
+        cell.classList.toggle("active", index + 1 === d.currentPage);
+        cell.classList.toggle("selected", selected.has(page.id));
+        const cb = cell.querySelector("input[type='checkbox']"); if (cb) cb.checked = selected.has(page.id);
+        const numEl = cell.querySelector(".pdf-thumb-num"); if (numEl) numEl.textContent = String(index + 1);
+      });
+      return;
+    }
     list.innerHTML = d.pages.map((page, index) => {
-      const source = page.kind === "blank" ? "빈 페이지" : `원본 ${page.sourcePage}`;
-      return `<div class="pdf-page-row ${index + 1 === d.currentPage ? "active" : ""}" data-pdf-page-index="${index}"><input type="checkbox" ${selected.has(page.id) ? "checked" : ""} aria-label="${index + 1}페이지 선택"><span>${index + 1}페이지</span><small>${source}</small></div>`;
+      const active = index + 1 === d.currentPage ? " active" : "";
+      const sel = selected.has(page.id) ? " selected" : "";
+      const inner = page.kind === "blank"
+        ? '<span class="pdf-thumb-blank">빈<br>페이지</span>'
+        : '<span class="pdf-thumb-spin"></span>';
+      return `<div class="pdf-thumb-cell${active}${sel}" data-pdf-page-index="${index}">
+        <div class="pdf-thumb-frame">
+          <div class="pdf-thumb-img" data-page-id="${page.id}">${inner}</div>
+          <button class="pdf-thumb-handle" type="button" aria-label="드래그하여 순서 변경" title="드래그하여 순서 변경"><svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></button>
+          <span class="pdf-thumb-check"><input type="checkbox" ${selected.has(page.id) ? "checked" : ""} aria-label="${index + 1}페이지 선택"></span>
+        </div>
+        <div class="pdf-thumb-meta"><span class="pdf-thumb-num">${index + 1}</span><small>${pdfPageSourceLabel(page)}</small></div>
+      </div>`;
     }).join("");
+    list.dataset.sig = sig;
+    void fillPdfThumbs(d, ++pdfThumbGen);
+  }
+  async function ensurePdfThumb(d, page) {
+    if (!page || page.kind === "blank") return null;
+    if (pdfThumbCache.has(page.id)) return pdfThumbCache.get(page.id);
+    const attachment = pdfAttachmentById(d, page.attachmentId) || d.attachments[0];
+    const doc = await pdfDocForAttachment(attachment); if (!doc) return null;
+    const pageNo = Math.max(1, Math.min(doc.numPages || 1, page.sourcePage || 1));
+    const pg = await doc.getPage(pageNo);
+    const rot = ((page.rotation || 0) % 360 + 360) % 360;
+    const base = pg.getViewport({ scale: 1, rotation: rot });
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const scale = Math.min(1.1, 180 / (base.width || 180)) * dpr;
+    const vp = pg.getViewport({ scale, rotation: rot });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.floor(vp.width)); canvas.height = Math.max(1, Math.floor(vp.height));
+    const ctx = canvas.getContext("2d", { alpha: false });
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    const url = canvas.toDataURL("image/jpeg", 0.72);
+    pdfThumbCache.set(page.id, url);
+    return url;
+  }
+  async function fillPdfThumbs(d, gen) {
+    const list = $("pdfPageList"); if (!list) return;
+    for (const page of d.pages) {
+      if (gen !== pdfThumbGen) return;
+      if (page.kind === "blank") continue;
+      let url = null;
+      try { url = await ensurePdfThumb(d, page); } catch (e) { continue; }
+      if (gen !== pdfThumbGen) return;
+      if (!url) continue;
+      const holder = Array.from(list.querySelectorAll(".pdf-thumb-img")).find((el) => el.dataset.pageId === page.id);
+      if (holder) { holder.style.backgroundImage = `url("${url}")`; holder.classList.add("loaded"); holder.innerHTML = ""; }
+    }
+  }
+  function reorderPdfPages(from, to) {
+    const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
+    const d = normalizePdfData(n.data || {});
+    if (from < 0 || from >= d.pages.length) return;
+    const pages = d.pages.slice();
+    const current = pages[(d.currentPage || 1) - 1];
+    let target = Math.max(0, Math.min(pages.length, to));
+    const [moved] = pages.splice(from, 1);
+    if (from < target) target -= 1;
+    target = Math.max(0, Math.min(pages.length, target));
+    if (target === from) return;
+    pages.splice(target, 0, moved);
+    d.pages = pages; d.editMode = true; d.pageCount = pages.length;
+    d.currentPage = Math.max(1, pages.findIndex((p) => current && p.id === current.id) + 1) || 1;
+    n.data = d; syncPdfControls(n); schedulePdfSave(300); void renderPdfPage(n.id);
+    toast("페이지 순서를 바꿨어요");
+  }
+  function beginPdfThumbDrag(e) {
+    const handle = e.target && e.target.closest ? e.target.closest(".pdf-thumb-handle") : null;
+    if (!handle) return;
+    const cell = handle.closest(".pdf-thumb-cell"); const list = $("pdfPageList");
+    if (!cell || !list) return;
+    e.preventDefault();
+    const rect = cell.getBoundingClientRect();
+    const ghost = cell.cloneNode(true);
+    ghost.classList.add("pdf-thumb-ghost");
+    ghost.style.width = rect.width + "px"; ghost.style.height = rect.height + "px";
+    ghost.style.left = rect.left + "px"; ghost.style.top = rect.top + "px";
+    document.body.appendChild(ghost);
+    cell.classList.add("dragging");
+    pdfThumbDrag = { from: Number(cell.dataset.pdfPageIndex), pointerId: e.pointerId, ghost, dx: e.clientX - rect.left, dy: e.clientY - rect.top, over: Number(cell.dataset.pdfPageIndex) };
+    pdfThumbDragMoved = false;
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+  function movePdfThumbDrag(e) {
+    const s = pdfThumbDrag; if (!s || e.pointerId !== s.pointerId) return;
+    pdfThumbDragMoved = true;
+    s.ghost.style.left = (e.clientX - s.dx) + "px"; s.ghost.style.top = (e.clientY - s.dy) + "px";
+    const list = $("pdfPageList"); if (!list) return;
+    list.querySelectorAll(".drag-over-before,.drag-over-after").forEach((c) => c.classList.remove("drag-over-before", "drag-over-after"));
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const overCell = el && el.closest ? el.closest(".pdf-thumb-cell") : null;
+    if (overCell && !overCell.classList.contains("dragging")) {
+      const r = overCell.getBoundingClientRect();
+      const after = e.clientX > r.left + r.width / 2;
+      overCell.classList.add(after ? "drag-over-after" : "drag-over-before");
+      const idx = Number(overCell.dataset.pdfPageIndex);
+      s.over = after ? idx + 1 : idx;
+    }
+  }
+  function endPdfThumbDrag(e) {
+    const s = pdfThumbDrag; if (!s || (e && e.pointerId != null && e.pointerId !== s.pointerId)) return;
+    pdfThumbDrag = null;
+    if (s.ghost && s.ghost.parentNode) s.ghost.parentNode.removeChild(s.ghost);
+    const list = $("pdfPageList");
+    if (list) list.querySelectorAll(".dragging,.drag-over-before,.drag-over-after").forEach((c) => c.classList.remove("dragging", "drag-over-before", "drag-over-after"));
+    if (pdfThumbDragMoved) reorderPdfPages(s.from, s.over);
+    setTimeout(() => { pdfThumbDragMoved = false; }, 0);
   }
   function syncPdfControls(n) {
     const d = normalizePdfData(n && n.data), count = d.pages.length || d.pageCount || 0, a = d.attachments[0];
@@ -10393,6 +10529,8 @@ ${gallery}
       if (!list) return;
       list.addEventListener("click", (e) => {
         const target = e.target;
+        if (pdfThumbDragMoved) { pdfThumbDragMoved = false; return; }  // swallow click right after a reorder drag
+        if (target && target.closest && target.closest(".pdf-thumb-handle")) return;  // handle = drag only
         const row = target && target.closest ? target.closest("[data-pdf-page-index]") : null;
         if (!row) return;
         const index = Number(row.dataset.pdfPageIndex);
@@ -10400,9 +10538,18 @@ ${gallery}
           togglePdfPageSelection(index, target.checked);
           return;
         }
+        if (target.closest && target.closest(".pdf-thumb-check")) {  // grid checkbox hit-area (padding around the box)
+          const box = row.querySelector("input[type='checkbox']");
+          if (box) { box.checked = !box.checked; togglePdfPageSelection(index, box.checked); }
+          return;
+        }
         setPdfPage(index + 1);
       });
+      list.addEventListener("pointerdown", beginPdfThumbDrag);
     })();
+    document.addEventListener("pointermove", movePdfThumbDrag);
+    document.addEventListener("pointerup", endPdfThumbDrag);
+    document.addEventListener("pointercancel", endPdfThumbDrag);
     (() => {
       const layer = $("pdfTextLayer");
       if (!layer) return;
