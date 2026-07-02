@@ -274,7 +274,7 @@
     const type = slot && slot.createType;
     if (type === "persona") return slot.createMode === "collection" ? "다인 페르소나" : "페르소나";
     if (type === "character") return slot.createMode === "collection" ? "다인 캐릭터" : "캐릭터";
-    return ({ free: "자유 메모", html: "코드 작업실", regex: "정규식 작업실", pdf: "PDF 작업실", lorebook: "로어북", log: "로그 저장", idea: "아이디어 보드" })[type] || "메모";
+    return ({ free: "자유 메모", html: "코드 작업실", regex: "정규식 작업실", pdf: "문서 작업실", lorebook: "로어북", log: "로그 저장", idea: "아이디어 보드" })[type] || "메모";
   }
   function quickMenuSlotLabel(slot) {
     if (!slot || !slot.kind) return "새 슬롯 등록";
@@ -663,7 +663,7 @@
   }
   function openQuickMenuCreateTypePicker(index) {
     const options = [
-      ["free", "single", "자유 메모", "바로 빈 문서 열기"], ["html", "single", "코드 작업실", "HTML · JSON · MD 원본 편집 시작"], ["regex", "single", "정규식 작업실", "SillyTavern Regex 만들기"], ["pdf", "single", "PDF 작업실", "PDF 열기와 내보내기"], ["lorebook", "single", "로어북", "World Info용 항목 만들기"], ["log", "single", "로그 저장", "대화 로그용 메모 만들기"],
+      ["free", "single", "자유 메모", "바로 빈 문서 열기"], ["html", "single", "코드 작업실", "HTML · JSON · MD 원본 편집 시작"], ["regex", "single", "정규식 작업실", "SillyTavern Regex 만들기"], ["pdf", "single", "문서 작업실", "PDF · Word · 한글 · PPT · 엑셀 · TXT 열기"], ["lorebook", "single", "로어북", "World Info용 항목 만들기"], ["log", "single", "로그 저장", "대화 로그용 메모 만들기"],
       ["persona", "single", "페르소나", "단일 페르소나 카드"], ["persona", "collection", "다인 페르소나", "페르소나 모음 카드"], ["character", "single", "캐릭터", "단일 캐릭터 카드"], ["character", "collection", "다인 캐릭터", "캐릭터 모음 카드"], ["idea", "single", "아이디어 보드", "자유 배치 보드 만들기"]
     ];
     openModal(`<h3>만들 메모 타입</h3><p class="m-sub">실행하면 이 타입의 새 메모를 바로 만듭니다.</p><div class="qm-picker-list">${options.map(([type, mode, label, desc]) => `<button type="button" class="qm-picker-row" data-qm-create-type="${type}" data-qm-create-mode="${mode}"><b>${esc(label)}</b><small>${esc(desc)}</small></button>`).join("")}</div><div class="m-row"><button class="m-btn" id="qmCreateTypeBack">뒤로</button></div>`);
@@ -2112,7 +2112,7 @@
     } else {
       const dotStyle = col ? `background:${col};box-shadow:0 0 8px ${col}` : "";
       lead = `<span class="mc-dot" style="${dotStyle}"></span>`;
-      meta = n.type === "idea" ? ideaBoardSummary(n) : n.type === "lorebook" ? `키워드 ${((n.data && n.data.keywords) || []).length}개${n.data && n.data.alwaysActive ? " · 항상 활성" : ""}` : n.type === "log" ? (String((n.data && n.data.content) || "").replace(/\s+/g, " ").trim().slice(0, 60) || "빈 로그") : n.type === "html" ? (htmlSourceSummary(n) || "빈 코드 원본") : n.type === "regex" ? (regexSourceSummary(n) || "빈 정규식") : n.type === "pdf" ? (pdfSourceSummary(n) || "PDF 없음") : (preview(noteHtml(n)) || "빈 메모");
+      meta = n.type === "idea" ? ideaBoardSummary(n) : n.type === "lorebook" ? `키워드 ${((n.data && n.data.keywords) || []).length}개${n.data && n.data.alwaysActive ? " · 항상 활성" : ""}` : n.type === "log" ? (String((n.data && n.data.content) || "").replace(/\s+/g, " ").trim().slice(0, 60) || "빈 로그") : n.type === "html" ? (htmlSourceSummary(n) || "빈 코드 원본") : n.type === "regex" ? (regexSourceSummary(n) || "빈 정규식") : n.type === "pdf" ? (pdfSourceSummary(n) || "문서 없음") : (preview(noteHtml(n)) || "빈 메모");
     }
     chip.innerHTML = '<span class="sel-check"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span>' + lead +
       `<div class="mc-body"><div class="mc-title">${esc(n.title)}${n.pinned ? PIN_STAR : ""}</div><div class="mc-meta">${fmtDate(n.updatedAt)} · ${esc(meta)}</div></div>` +
@@ -2427,7 +2427,7 @@
     const personaTitle = characterModeOption === "single" ? "이름 없는 페르소나" : "이름 없는 페르소나 모음";
     const n = {
       id: uid(), projectId, type,
-      title: type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : type === "idea" ? "새 아이디어 보드" : type === "persona" ? personaTitle : type === "character" ? characterTitle : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "pdf" ? "새 PDF 작업실" : "제목 없는 메모",
+      title: type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : type === "idea" ? "새 아이디어 보드" : type === "persona" ? personaTitle : type === "character" ? characterTitle : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "pdf" ? "새 문서 작업실" : "제목 없는 메모",
       titleLocked: type === "lorebook",
       chipColor: null, createdAt: now(), updatedAt: now(),
       data: type === "free" ? { html: "" }
@@ -2882,8 +2882,317 @@
     const base = String(name || "pdf-workshop").replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]+/g, "_").trim();
     return (base || "pdf-workshop").slice(0, 80);
   }
+  function documentExt(name) {
+    const match = String(name || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+    return match ? match[1] : "";
+  }
+  function normalizeDocumentKind(value) {
+    const kind = String(value || "").toLowerCase();
+    return ["pdf", "txt", "docx", "pptx", "xlsx", "hwpx", "hwp"].includes(kind) ? kind : "";
+  }
+  function documentKindForNameType(name, type) {
+    const ext = documentExt(name);
+    const mime = String(type || "").toLowerCase().split(";")[0].trim();
+    if (ext === "pdf" || mime === "application/pdf" || mime === "application/x-pdf") return "pdf";
+    if (ext === "docx" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "docx";
+    if (ext === "pptx" || mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation") return "pptx";
+    if (ext === "xlsx" || mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return "xlsx";
+    if (ext === "hwpx") return "hwpx";
+    if (ext === "hwp") return "hwp";
+    if (ext === "txt" || ext === "text" || /^text\/plain$/i.test(mime)) return "txt";
+    return "";
+  }
+  function documentKindForFile(file) { return documentKindForNameType(file && file.name, file && file.type); }
+  function documentKindForAttachment(attachment) { return documentKindForNameType(attachment && attachment.name, attachment && attachment.type); }
+  function isDocumentFile(file) { return !!documentKindForFile(file); }
+  function isPdfDocumentData(data) { return (normalizeDocumentKind(data && data.fileKind) || documentKindForAttachment(data && data.attachments && data.attachments[0]) || "pdf") === "pdf"; }
+  function documentKindLabel(kind) {
+    return ({ pdf:"PDF", txt:"TXT", docx:"Word", pptx:"PPT", xlsx:"Excel", hwpx:"한글 HWPX", hwp:"한글 HWP" })[normalizeDocumentKind(kind)] || "문서";
+  }
+  function documentFileBaseName(name) {
+    const base = String(name || "document-workshop").replace(/\.(?:pdf|txt|text|docx|pptx|xlsx|hwpx|hwp)$/i, "").replace(/[\\/:*?"<>|]+/g, "_").trim();
+    return (base || "document-workshop").slice(0, 80);
+  }
+  function documentPreviewShell(attachment, kind, body, note) {
+    const title = attachment && attachment.name ? attachment.name : (note && note.title) || "문서";
+    const meta = `${documentKindLabel(kind)} · ${fmtSize(Number(attachment && attachment.size) || 0)}`;
+    return `<div class="doc-viewer-head"><div class="doc-viewer-title"><b>${esc(title)}</b><small>${esc(meta)}</small></div><span class="doc-viewer-badge">${esc(documentKindLabel(kind))}</span></div><div class="doc-viewer-body">${body}</div>`;
+  }
+  function documentPlaceholder(title, text) {
+    return `<div class="doc-placeholder"><b>${esc(title)}</b><span>${esc(text)}</span></div>`;
+  }
+  function decodeTextBytes(bytes) {
+    const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    if (arr.length >= 2 && arr[0] === 0xFF && arr[1] === 0xFE) return new TextDecoder("utf-16le").decode(arr.subarray(2));
+    if (arr.length >= 2 && arr[0] === 0xFE && arr[1] === 0xFF) return new TextDecoder("utf-16be").decode(arr.subarray(2));
+    if (arr.length >= 3 && arr[0] === 0xEF && arr[1] === 0xBB && arr[2] === 0xBF) return new TextDecoder("utf-8").decode(arr.subarray(3));
+    return new TextDecoder("utf-8").decode(arr);
+  }
+  async function blobTextSmart(blob) {
+    return decodeTextBytes(new Uint8Array(await blob.arrayBuffer()));
+  }
+  function xmlDoc(text) { return new DOMParser().parseFromString(String(text || ""), "application/xml"); }
+  function nodeLocalName(node) { return String((node && (node.localName || node.nodeName)) || "").split(":").pop(); }
+  function xmlAttr(node, name) { return node ? (node.getAttribute(name) || node.getAttribute(`r:${name}`) || "") : ""; }
+  function textNodesByLocal(root, local) {
+    const out = [];
+    const walk = (node) => {
+      if (!node) return;
+      if (node.nodeType === 1 && nodeLocalName(node) === local) out.push(node);
+      Array.from(node.childNodes || []).forEach(walk);
+    };
+    walk(root);
+    return out;
+  }
+  function paragraphTextFromNode(node) {
+    const chunks = [];
+    const walk = (cur) => {
+      if (!cur) return;
+      if (cur.nodeType === 1) {
+        const local = nodeLocalName(cur);
+        if (local === "t") chunks.push(cur.textContent || "");
+        else if (local === "tab") chunks.push("\t");
+        else if (local === "br" || local === "cr") chunks.push("\n");
+      }
+      Array.from(cur.childNodes || []).forEach(walk);
+    };
+    walk(node);
+    return chunks.join("").replace(/[ \t]+\n/g, "\n").trim();
+  }
+  async function inflateRawBytes(bytes) {
+    if (!("DecompressionStream" in window)) throw new Error("이 브라우저는 압축 문서 미리보기를 지원하지 않아요");
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    } catch (error) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+  }
+  async function zipEntriesFromBlob(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let eocd = -1;
+    for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 66000); i--) {
+      if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error("ZIP 구조를 찾지 못했어요");
+    const count = view.getUint16(eocd + 10, true);
+    let offset = view.getUint32(eocd + 16, true);
+    const decoder = new TextDecoder("utf-8");
+    const entries = [];
+    for (let i = 0; i < count && offset + 46 <= bytes.length; i++) {
+      if (view.getUint32(offset, true) !== 0x02014b50) break;
+      const flags = view.getUint16(offset + 8, true);
+      const method = view.getUint16(offset + 10, true);
+      const compSize = view.getUint32(offset + 20, true);
+      const size = view.getUint32(offset + 24, true);
+      const nameLen = view.getUint16(offset + 28, true);
+      const extraLen = view.getUint16(offset + 30, true);
+      const commentLen = view.getUint16(offset + 32, true);
+      const localOffset = view.getUint32(offset + 42, true);
+      const name = decoder.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+      if (view.getUint32(localOffset, true) === 0x04034b50) {
+        const localNameLen = view.getUint16(localOffset + 26, true);
+        const localExtraLen = view.getUint16(localOffset + 28, true);
+        const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+        entries.push({ name, flags, method, compSize, size, dataStart, bytes });
+      }
+      offset += 46 + nameLen + extraLen + commentLen;
+    }
+    return entries;
+  }
+  async function zipEntryBytes(entries, path) {
+    const wanted = String(path || "").replace(/\\/g, "/").toLowerCase();
+    const entry = entries.find((item) => item.name.toLowerCase() === wanted);
+    if (!entry) return null;
+    if (entry._data) return entry._data;
+    const raw = entry.bytes.subarray(entry.dataStart, entry.dataStart + entry.compSize);
+    entry._data = entry.method === 0 ? raw : entry.method === 8 ? await inflateRawBytes(raw) : null;
+    return entry._data;
+  }
+  async function zipEntryText(entries, path) {
+    const bytes = await zipEntryBytes(entries, path);
+    return bytes ? new TextDecoder("utf-8").decode(bytes) : "";
+  }
+  function sortByTrailingNumber(list) {
+    return list.slice().sort((a, b) => {
+      const na = Number((a.name.match(/(\d+)(?=\.[^.]+$)/) || [0, 0])[1]);
+      const nb = Number((b.name.match(/(\d+)(?=\.[^.]+$)/) || [0, 0])[1]);
+      return na - nb || a.name.localeCompare(b.name);
+    });
+  }
+  function paragraphsHtml(paragraphs, emptyText) {
+    const clean = paragraphs.map((p) => String(p || "").trim()).filter(Boolean).slice(0, 1200);
+    if (!clean.length) return documentPlaceholder("미리볼 텍스트가 없어요", emptyText || "문서 본문을 찾지 못했어요.");
+    return `<div class="doc-section">${clean.map((p) => `<p>${esc(p)}</p>`).join("")}</div>`;
+  }
+  async function previewDocx(blob) {
+    const entries = await zipEntriesFromBlob(blob);
+    const text = await zipEntryText(entries, "word/document.xml");
+    if (!text) return documentPlaceholder("Word 본문을 찾지 못했어요", "암호화되었거나 지원하지 않는 DOCX 구조일 수 있어요.");
+    const doc = xmlDoc(text);
+    const paragraphs = textNodesByLocal(doc, "p").map(paragraphTextFromNode);
+    return paragraphsHtml(paragraphs, "DOCX 안의 문단 텍스트를 찾지 못했어요.");
+  }
+  async function previewPptx(blob) {
+    const entries = sortByTrailingNumber((await zipEntriesFromBlob(blob)).filter((item) => /^ppt\/slides\/slide\d+\.xml$/i.test(item.name)));
+    if (!entries.length) return documentPlaceholder("PPT 슬라이드를 찾지 못했어요", "암호화되었거나 지원하지 않는 PPTX 구조일 수 있어요.");
+    const slides = [];
+    for (let i = 0; i < Math.min(entries.length, 160); i++) {
+      const text = new TextDecoder("utf-8").decode(await zipEntryBytes(entries, entries[i].name));
+      const paragraphs = textNodesByLocal(xmlDoc(text), "p").map(paragraphTextFromNode).filter(Boolean);
+      slides.push(`<section class="doc-section"><h4>슬라이드 ${i + 1}</h4>${paragraphs.length ? paragraphs.map((p) => `<p>${esc(p)}</p>`).join("") : "<p>텍스트 없음</p>"}</section>`);
+    }
+    return slides.join("");
+  }
+  function xlsxColumnIndex(ref) {
+    const letters = String(ref || "").match(/^[A-Z]+/i);
+    if (!letters) return 0;
+    let out = 0;
+    for (const ch of letters[0].toUpperCase()) out = out * 26 + ch.charCodeAt(0) - 64;
+    return Math.max(0, out - 1);
+  }
+  async function previewXlsx(blob) {
+    const zip = await zipEntriesFromBlob(blob);
+    const sharedXml = await zipEntryText(zip, "xl/sharedStrings.xml");
+    const shared = sharedXml ? textNodesByLocal(xmlDoc(sharedXml), "si").map((si) => textNodesByLocal(si, "t").map((t) => t.textContent || "").join("")) : [];
+    const sheets = sortByTrailingNumber(zip.filter((item) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(item.name)));
+    if (!sheets.length) return documentPlaceholder("Excel 시트를 찾지 못했어요", "암호화되었거나 지원하지 않는 XLSX 구조일 수 있어요.");
+    const html = [];
+    for (let s = 0; s < Math.min(sheets.length, 24); s++) {
+      const doc = xmlDoc(new TextDecoder("utf-8").decode(await zipEntryBytes(zip, sheets[s].name)));
+      const rows = textNodesByLocal(doc, "row").slice(0, 120).map((row) => {
+        const cells = [];
+        textNodesByLocal(row, "c").slice(0, 80).forEach((cell) => {
+          const col = xlsxColumnIndex(xmlAttr(cell, "r"));
+          const type = xmlAttr(cell, "t");
+          const v = textNodesByLocal(cell, "v")[0];
+          const inline = textNodesByLocal(cell, "t").map((t) => t.textContent || "").join("");
+          const raw = v ? v.textContent || "" : inline;
+          cells[col] = type === "s" ? (shared[Number(raw)] || "") : raw;
+        });
+        return cells;
+      });
+      const width = Math.min(40, Math.max(1, ...rows.map((row) => row.length)));
+      html.push(`<section class="doc-section"><h4>시트 ${s + 1}</h4><div class="doc-table-wrap"><table class="doc-sheet"><tbody>${rows.map((row, r) => `<tr><th>${r + 1}</th>${Array.from({ length: width }, (_, c) => `<td>${esc(row[c] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`);
+    }
+    return html.join("");
+  }
+  async function previewHwpx(blob) {
+    const zip = await zipEntriesFromBlob(blob);
+    const sections = sortByTrailingNumber(zip.filter((item) => /(?:^|\/)(?:section|Section)\d+\.xml$/i.test(item.name) || /^Contents\/section\d+\.xml$/i.test(item.name)));
+    const paragraphs = [];
+    for (const entry of sections.slice(0, 160)) {
+      const text = new TextDecoder("utf-8").decode(await zipEntryBytes(zip, entry.name));
+      textNodesByLocal(xmlDoc(text), "p").forEach((p) => {
+        const body = paragraphTextFromNode(p);
+        if (body) paragraphs.push(body);
+      });
+    }
+    return paragraphsHtml(paragraphs, "HWPX 본문 텍스트를 찾지 못했어요.");
+  }
+  function oleUint32(view, offset) { return view.getUint32(offset, true); }
+  function oleReadUtf16Name(bytes) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const len = Math.max(0, Math.min(64, view.getUint16(64, true) - 2));
+    return len ? new TextDecoder("utf-16le").decode(bytes.subarray(0, len)).replace(/\u0000/g, "") : "";
+  }
+  function hwpCleanText(text) {
+    return String(text || "").replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, " ").replace(/[ \t]{2,}/g, " ").split(/\r?\n| {3,}/).map((line) => line.trim()).filter((line) => /[가-힣A-Za-z0-9]/.test(line)).join("\n");
+  }
+  async function hwpExtractText(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (bytes.length < 512) return "";
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (view.getUint32(0, true) !== 0xE011CFD0 || view.getUint32(4, true) !== 0xE11AB1A1) return hwpCleanText(new TextDecoder("utf-16le").decode(bytes));
+    const sectorSize = 1 << view.getUint16(30, true), miniSize = 1 << view.getUint16(32, true), miniCutoff = oleUint32(view, 56);
+    const firstDir = oleUint32(view, 48), firstMiniFat = oleUint32(view, 60), miniFatCount = oleUint32(view, 64), firstDifat = oleUint32(view, 68), difatCount = oleUint32(view, 72);
+    const sector = (id) => bytes.subarray((id + 1) * sectorSize, (id + 2) * sectorSize);
+    const difat = [];
+    for (let i = 0; i < 109; i++) { const id = oleUint32(view, 76 + i * 4); if (id < 0xFFFFFFF0) difat.push(id); }
+    let dif = firstDifat;
+    for (let i = 0; i < difatCount && dif < 0xFFFFFFF0; i++) {
+      const s = sector(dif), dv = new DataView(s.buffer, s.byteOffset, s.byteLength);
+      for (let p = 0; p < sectorSize - 4; p += 4) { const id = dv.getUint32(p, true); if (id < 0xFFFFFFF0) difat.push(id); }
+      dif = dv.getUint32(sectorSize - 4, true);
+    }
+    const fat = [];
+    difat.forEach((id) => {
+      const s = sector(id), dv = new DataView(s.buffer, s.byteOffset, s.byteLength);
+      for (let p = 0; p < sectorSize; p += 4) fat.push(dv.getUint32(p, true));
+    });
+    const readChain = (start, size) => {
+      const chunks = []; let id = start, guard = 0, total = 0;
+      while (id < 0xFFFFFFF0 && guard++ < fat.length + 4) {
+        const s = sector(id); chunks.push(s); total += s.length; id = fat[id];
+        if (size && total >= size) break;
+      }
+      const out = new Uint8Array(size || total); let pos = 0;
+      chunks.forEach((chunk) => { out.set(chunk.subarray(0, Math.min(chunk.length, out.length - pos)), pos); pos += chunk.length; });
+      return out;
+    };
+    const dirBytes = readChain(firstDir, 0), entries = [];
+    for (let off = 0; off + 128 <= dirBytes.length; off += 128) {
+      const row = dirBytes.subarray(off, off + 128), dv = new DataView(row.buffer, row.byteOffset, row.byteLength);
+      const name = oleReadUtf16Name(row), type = row[66], start = dv.getUint32(116, true), size = dv.getUint32(120, true) + dv.getUint32(124, true) * 4294967296;
+      if (name) entries.push({ name, type, start, size });
+    }
+    const root = entries.find((entry) => entry.type === 5);
+    const miniStream = root ? readChain(root.start, root.size) : new Uint8Array();
+    const miniFatBytes = miniFatCount ? readChain(firstMiniFat, miniFatCount * sectorSize) : new Uint8Array();
+    const miniFat = [];
+    for (let p = 0; p + 4 <= miniFatBytes.length; p += 4) miniFat.push(new DataView(miniFatBytes.buffer, miniFatBytes.byteOffset + p, 4).getUint32(0, true));
+    const readMini = (start, size) => {
+      const out = new Uint8Array(size || 0); let id = start, pos = 0, guard = 0;
+      while (id < 0xFFFFFFF0 && pos < out.length && guard++ < miniFat.length + 4) {
+        const chunk = miniStream.subarray(id * miniSize, id * miniSize + miniSize);
+        out.set(chunk.subarray(0, Math.min(chunk.length, out.length - pos)), pos);
+        pos += chunk.length; id = miniFat[id];
+      }
+      return out;
+    };
+    const readStream = (entry) => entry.size < miniCutoff && entry.type === 2 ? readMini(entry.start, entry.size) : readChain(entry.start, entry.size);
+    const header = entries.find((entry) => entry.name === "FileHeader");
+    const headerBytes = header ? readStream(header) : new Uint8Array();
+    const props = headerBytes.length >= 40 ? new DataView(headerBytes.buffer, headerBytes.byteOffset, headerBytes.byteLength).getUint32(36, true) : 0;
+    if (props & 2) return "";
+    const compressed = !!(props & 1), sections = entries.filter((entry) => /^Section\d+$/i.test(entry.name)).sort((a, b) => Number(a.name.replace(/\D/g, "")) - Number(b.name.replace(/\D/g, "")));
+    const out = [];
+    for (const section of sections) {
+      let data = readStream(section);
+      if (compressed) { try { data = await inflateRawBytes(data); } catch (e) {} }
+      const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      for (let pos = 0; pos + 4 <= data.length;) {
+        const head = dv.getUint32(pos, true); pos += 4;
+        const tag = head & 0x3FF; let size = (head >>> 20) & 0xFFF;
+        if (size === 0xFFF && pos + 4 <= data.length) { size = dv.getUint32(pos, true); pos += 4; }
+        if (size < 0 || pos + size > data.length) break;
+        if (tag === 67) out.push(hwpCleanText(new TextDecoder("utf-16le").decode(data.subarray(pos, pos + size))));
+        pos += size;
+      }
+    }
+    return out.join("\n").trim() || hwpCleanText(new TextDecoder("utf-16le").decode(bytes));
+  }
+  async function buildDocumentPreviewBody(kind, blob) {
+    if (kind === "txt") return `<pre class="doc-text">${esc((await blobTextSmart(blob)).slice(0, 1000000))}</pre>`;
+    if (kind === "docx") return await previewDocx(blob);
+    if (kind === "pptx") return await previewPptx(blob);
+    if (kind === "xlsx") return await previewXlsx(blob);
+    if (kind === "hwpx") return await previewHwpx(blob);
+    if (kind === "hwp") {
+      const text = await hwpExtractText(blob);
+      return text ? `<pre class="doc-text">${esc(text.slice(0, 1000000))}</pre>` : documentPlaceholder("HWP 본문을 읽지 못했어요", "암호화된 파일이거나 브라우저에서 해석하기 어려운 HWP 구조입니다. HWPX는 더 안정적으로 미리볼 수 있어요.");
+    }
+    return documentPlaceholder("지원하지 않는 문서 형식이에요", "PDF, TXT, DOCX, PPTX, XLSX, HWPX, HWP 파일을 열 수 있어요.");
+  }
   function pdfSourceSummary(n) {
     const d = normalizePdfData(n && n.data);
+    const kind = normalizeDocumentKind(d.fileKind) || documentKindForAttachment(d.attachments[0]) || "pdf";
+    if (kind !== "pdf") {
+      const a = d.attachments[0];
+      return a ? `${documentKindLabel(kind)} · ${a.name || "문서"} · ${fmtSize(Number(a.size) || 0)}` : "문서 없음";
+    }
     const a = d.attachments[0];
     if (a) return `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}`;
     return String(d.memo || "").replace(/\s+/g, " ").trim().slice(0, 60);
@@ -2967,7 +3276,7 @@
   }
   function syncPdfControls(n) {
     const d = normalizePdfData(n && n.data), a = d.attachments[0];
-    $("pdfTitle").textContent = n && n.title ? n.title : "PDF 작업실";
+    $("pdfTitle").textContent = n && n.title ? n.title : "문서 작업실";
     $("pdfMeta").textContent = a ? `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}` : "PDF 없음";
     $("pdfFileName").value = a ? (a.name || "document.pdf") : "";
     $("pdfMemo").value = d.memo || "";
@@ -3067,7 +3376,7 @@
     try {
       await put("files", { id, noteId:n.id, name, type, size:file.size, blob:file, createdAt:now() });
       n.data = Object.assign({}, normalizePdfData(n.data || {}), { attachments:[{ id, name, type, size:file.size }], currentPage:1, pageCount:0, rotation:0 });
-      if (!n.titleLocked) n.title = pdfFileBaseName(name) || "PDF 작업실";
+      if (!n.titleLocked) n.title = pdfFileBaseName(name) || "문서 작업실";
       await saveNote(n);
       if (old && old.id !== id) await del("files", old.id).catch(() => {});
       revokePdfObjectUrl(); pdfLoadedDoc = null; pdfLoadedFileId = "";
@@ -3128,13 +3437,13 @@
   function openPdfSheet(n) {
     openSheet(n.title, [
       { icon: IC.pin, label: n.pinned ? "고정 해제" : "상단 고정", fn: () => togglePinNote(n.id) },
-      { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("PDF 작업실 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
+      { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("문서 작업실 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
       { icon: IC.color, label: "색상 지정", fn: () => showChipPicker(n.id) },
       { icon: IC.save, label: "PDF 내보내기", fn: () => void exportPdfOriginal(n.id) },
       { icon: IC.export, label: "현재 페이지 PNG 저장", fn: () => void exportPdfPagePng(n.id) },
       { icon: IC.move, label: "다른 프로젝트로 이동", fn: () => pickTargetProject(n.projectId, (pid) => moveNote(n.id, pid).then(render)) },
       { icon: IC.copy, label: "선택 위치로 복제", fn: () => pickTargetProject(n.projectId, (pid) => duplicateNote(n.id, pid).then(render)) },
-      { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("PDF 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
+      { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("문서 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
     ]);
   }
   function openPdfFile(file) {
@@ -3157,7 +3466,7 @@
   let pdfThumbCache = new Map(), pdfThumbGen = 0, pdfThumbDrag = null, pdfThumbDragMoved = false;
 
   function makePdfData() {
-    return { attachments: [], pages: [], currentPage: 1, pageCount: 0, zoom: 1.2, rotation: 0, memo: "", editMode: false, selectedPages: [] };
+    return { fileKind: "pdf", attachments: [], pages: [], currentPage: 1, pageCount: 0, zoom: 1.2, rotation: 0, memo: "", editMode: false, selectedPages: [] };
   }
   function pdfSafeId(value) { const text = String(value || ""); return text && text.length < 180 ? text : uid(); }
   function pdfClamp01(value, fallback) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback; }
@@ -3198,17 +3507,21 @@
   }
   function normalizePdfData(raw) {
     const src = raw && typeof raw === "object" ? raw : {};
-    const attachments = normalizeImportedAttachments(src.attachments).filter((item) => /pdf/i.test(`${item.type || ""} ${item.name || ""}`)).slice(0, PDF_EDIT_MAX_ATTACHMENTS);
+    const imported = normalizeImportedAttachments(src.attachments).filter((item) => documentKindForAttachment(item)).slice(0, PDF_EDIT_MAX_ATTACHMENTS);
+    const inferredKind = normalizeDocumentKind(src.fileKind || src.documentKind) || documentKindForAttachment(imported[0]) || "pdf";
+    const fileKind = inferredKind === "pdf" ? "pdf" : inferredKind;
+    const attachments = fileKind === "pdf" ? imported.filter((item) => documentKindForAttachment(item) === "pdf") : imported.slice(0, 1);
     let pages = Array.isArray(src.pages) ? src.pages.map((page) => normalizePdfPage(page, attachments)).filter(Boolean) : [];
     const legacyCount = Math.max(0, Math.min(99999, Math.round(Number(src.pageCount) || 0)));
-    if (!pages.length && attachments[0] && legacyCount) pages = pdfPagesForAttachment(attachments[0], legacyCount);
-    const pageCount = pages.length || legacyCount;
+    if (fileKind === "pdf" && !pages.length && attachments[0] && legacyCount) pages = pdfPagesForAttachment(attachments[0], legacyCount);
+    if (fileKind !== "pdf") pages = [];
+    const pageCount = fileKind === "pdf" ? (pages.length || legacyCount) : 0;
     const currentPage = Math.max(1, Math.min(pageCount || 1, Math.round(Number(src.currentPage) || 1)));
     const zoom = Math.max(0.6, Math.min(2.2, Number(src.zoom) || 1.2));
     const rotation = ((Math.round(Number(src.rotation) || 0) % 360) + 360) % 360;
     const validPageIds = new Set(pages.map((page) => page.id));
     const selectedPages = Array.isArray(src.selectedPages) ? src.selectedPages.map(String).filter((id) => validPageIds.has(id)).slice(0, 500) : [];
-    return { attachments, pages, currentPage, pageCount, zoom, rotation: rotation - (rotation % 90), memo: cleanImportedText(src.memo, 20000), editMode: !!src.editMode, selectedPages };
+    return { fileKind, attachments, pages, currentPage, pageCount, zoom, rotation: rotation - (rotation % 90), memo: cleanImportedText(src.memo, 20000), editMode: fileKind === "pdf" && !!src.editMode, selectedPages };
   }
   function pdfAttachmentFromData(data) { return normalizePdfData(data).attachments[0] || null; }
   function pdfAttachment(n) { return n && n.data ? pdfAttachmentFromData(n.data) : null; }
@@ -3218,6 +3531,11 @@
   }
   function pdfSourceSummary(n) {
     const d = normalizePdfData(n && n.data);
+    const kind = normalizeDocumentKind(d.fileKind) || documentKindForAttachment(d.attachments[0]) || "pdf";
+    if (kind !== "pdf") {
+      const a = d.attachments[0];
+      return a ? `${documentKindLabel(kind)} · ${a.name || "문서"} · ${fmtSize(Number(a.size) || 0)}` : "문서 없음";
+    }
     if (d.pages.length) return `페이지 ${d.pages.length}개 · PDF ${d.attachments.length}개`;
     const a = d.attachments[0];
     if (a) return `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}`;
@@ -3307,10 +3625,24 @@
     try { pageCount = await pdfPageCountFromBlob(file); } catch (e) {}
     return { attachment, pages: pdfPagesForAttachment(attachment, pageCount) };
   }
+  async function storeDocumentAttachment(n, file) {
+    if (!isDocumentFile(file)) throw new Error("not document");
+    if (file.size > PDF_EDIT_MAX_BYTES) throw new Error("too large");
+    const kind = documentKindForFile(file), fallbackExt = kind && kind !== "txt" ? `.${kind}` : ".txt";
+    const id = uid(), type = file.type || (kind === "txt" ? "text/plain" : "application/octet-stream"), name = cleanImportedText(file.name, 240) || `document${fallbackExt}`;
+    await put("files", { id, noteId:n.id, name, type, size:file.size, blob:file, createdAt:now() });
+    return { id, name, type, size:file.size };
+  }
   function pdfPageSourceLabel(page) { return page.kind === "blank" ? "빈 페이지" : `원본 ${page.sourcePage}`; }
   function pdfGridSignature(d) { return (d.editMode ? "G" : "L") + "|" + d.pages.map((p) => p.id).join(","); }
   function renderPdfPageList(d) {
     const list = $("pdfPageList"); if (!list) return;
+    if (!isPdfDocumentData(d)) {
+      const a = d.attachments[0], kind = normalizeDocumentKind(d.fileKind) || documentKindForAttachment(a);
+      list.classList.remove("is-grid"); list.dataset.sig = "";
+      list.innerHTML = `<div class="pdf-status">${a ? `${esc(documentKindLabel(kind))} 미리보기` : "문서가 없습니다."}</div>`;
+      return;
+    }
     const selected = new Set(d.selectedPages || []);
     if (!d.pages.length) { list.classList.remove("is-grid"); list.dataset.sig = ""; list.innerHTML = '<div class="pdf-status">페이지가 없습니다.</div>'; return; }
 
@@ -3452,8 +3784,11 @@
   }
   function syncPdfControls(n) {
     const d = normalizePdfData(n && n.data), count = d.pages.length || d.pageCount || 0, a = d.attachments[0];
-    $("pdfTitle").textContent = n && n.title ? n.title : "PDF 작업실";
-    $("pdfMeta").textContent = count ? `페이지 ${count}개 · PDF ${d.attachments.length}개` : (a ? `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}` : "PDF 없음");
+    const isPdfDoc = isPdfDocumentData(d), kind = normalizeDocumentKind(d.fileKind) || documentKindForAttachment(a) || "pdf";
+    $("pdfTitle").textContent = n && n.title ? n.title : "문서 작업실";
+    $("pdfMeta").textContent = isPdfDoc
+      ? (count ? `페이지 ${count}개 · PDF ${d.attachments.length}개` : (a ? `${a.name || "PDF"} · ${fmtSize(Number(a.size) || 0)}` : "문서 없음"))
+      : (a ? `${documentKindLabel(kind)} · ${a.name || "문서"} · ${fmtSize(Number(a.size) || 0)}` : "문서 없음");
     $("pdfFileName").value = a ? (a.name || "document.pdf") : "";
     $("pdfMemo").value = d.memo || "";
     $("pdfPage").value = String(d.currentPage || 1);
@@ -3461,12 +3796,13 @@
     $("pdfPageTotal").textContent = `/ ${count || 1}`;
     $("pdfZoom").value = String(Math.round((d.zoom || 1.2) * 100));
     $("pdfZoomLabel").textContent = `${Math.round((d.zoom || 1.2) * 100)}%`;
-    if ($("pdfAttachSummary")) $("pdfAttachSummary").textContent = `${d.attachments.length}개 파일`;
-    if ($("pdfSelectionSummary")) $("pdfSelectionSummary").textContent = d.selectedPages.length ? `${d.selectedPages.length}개 선택` : "선택 없음";
+    if ($("pdfAttachSummary")) $("pdfAttachSummary").textContent = isPdfDoc ? `${d.attachments.length}개 PDF` : (a ? documentKindLabel(kind) : "0개 파일");
+    if ($("pdfSelectionSummary")) $("pdfSelectionSummary").textContent = isPdfDoc ? (d.selectedPages.length ? `${d.selectedPages.length}개 선택` : "선택 없음") : "PDF 전용";
     if ($("pdfEditMode")) $("pdfEditMode").checked = !!d.editMode;
     if ($("pdfEditToggle")) $("pdfEditToggle").classList.toggle("active", !!d.editMode);
-    ["pdfPrev", "pdfNext", "pdfRotateLeft", "pdfRotateRight", "pdfReload", "pdfExport", "pdfExportImage", "pdfPanelExport", "pdfPanelImage", "pdfAddText", "pdfPanelAddText"].forEach((id) => { const el = $(id); if (el) el.disabled = !count; });
-    ["pdfMovePagesUp", "pdfMovePagesDown", "pdfDeletePages", "pdfSelectAll", "pdfClearSelection"].forEach((id) => { const el = $(id); if (el) el.disabled = !count; });
+    ["pdfExport", "pdfPanelExport", "pdfReload"].forEach((id) => { const el = $(id); if (el) el.disabled = !a; });
+    ["pdfPrev", "pdfNext", "pdfRotateLeft", "pdfRotateRight", "pdfExportImage", "pdfPanelImage", "pdfAddText", "pdfPanelAddText", "pdfEditToggle", "pdfEditMode", "pdfMergeFile", "pdfPanelMerge", "pdfBlankPage", "pdfPanelBlank"].forEach((id) => { const el = $(id); if (el) el.disabled = !isPdfDoc || !count; });
+    ["pdfMovePagesUp", "pdfMovePagesDown", "pdfDeletePages", "pdfSelectAll", "pdfClearSelection"].forEach((id) => { const el = $(id); if (el) el.disabled = !isPdfDoc || !count; });
     renderPdfPageList(d);
   }
   function showPdfEmpty(show) {
@@ -3474,6 +3810,7 @@
     $("pdfCanvasShell").hidden = true;
     $("pdfFallbackFrame").hidden = true;
     $("pdfLoading").hidden = true;
+    if ($("docPreview")) $("docPreview").hidden = true;
     if ($("pdfTextLayer")) $("pdfTextLayer").innerHTML = "";
   }
   function pdfCurrentCanvasSize(d) {
@@ -3490,7 +3827,7 @@
       const item = document.createElement("div");
       item.className = "pdf-textbox"; item.dataset.pdfTextId = box.id;
       item.style.left = `${box.x * 100}%`; item.style.top = `${box.y * 100}%`; item.style.width = `${box.w * 100}%`; item.style.height = `${box.h * 100}%`;
-      item.innerHTML = `<div class="pdf-textbox-grip">텍스트<button type="button" aria-label="텍스트박스 삭제">×</button></div><textarea class="pdf-textbox-edit" spellcheck="false"></textarea>`;
+      item.innerHTML = `<div class="pdf-textbox-grip">텍스트<button type="button" aria-label="텍스트박스 삭제">×</button></div><textarea class="pdf-textbox-edit" spellcheck="false"></textarea><button class="pdf-textbox-resize" type="button" aria-label="텍스트박스 크기 조절"></button>`;
       const area = item.querySelector("textarea");
       area.value = box.text || ""; area.style.fontSize = `${box.fontSize || 13}px`; area.style.color = box.color || "#111827";
       layer.appendChild(item);
@@ -3504,13 +3841,47 @@
     n.data = next; await saveNote(n);
     return normalizePdfData(n.data);
   }
+  async function renderDocumentPreview(n, d, token) {
+    const host = $("docPreview"), attachment = d.attachments[0], kind = normalizeDocumentKind(d.fileKind) || documentKindForAttachment(attachment);
+    if (!host) return;
+    $("pdfEmpty").hidden = !!attachment;
+    $("pdfLoading").hidden = false;
+    $("pdfCanvasShell").hidden = true;
+    $("pdfFallbackFrame").hidden = true;
+    host.hidden = true;
+    if ($("pdfTextLayer")) $("pdfTextLayer").innerHTML = "";
+    if (!attachment) { showPdfEmpty(true); $("pdfStatus").textContent = "문서 없음"; return; }
+    host.innerHTML = documentPreviewShell(attachment, kind, documentPlaceholder("문서를 읽는 중", "파일 내용을 로컬에서 해석하고 있어요."), n);
+    try {
+      const rec = await pdfRecordByAttachment(attachment);
+      if (token !== pdfRenderToken) return;
+      if (!rec || !rec.blob) { showPdfEmpty(true); $("pdfStatus").textContent = "문서 파일을 찾지 못했어요"; return; }
+      const body = await buildDocumentPreviewBody(kind, rec.blob);
+      if (token !== pdfRenderToken) return;
+      host.innerHTML = documentPreviewShell(attachment, kind, body, n);
+      $("pdfLoading").hidden = true;
+      $("pdfEmpty").hidden = true;
+      host.hidden = false;
+      $("pdfStatus").textContent = `${documentKindLabel(kind)} 미리보기`;
+    } catch (error) {
+      console.warn("document preview", error);
+      if (token !== pdfRenderToken) return;
+      $("pdfLoading").hidden = true;
+      $("pdfEmpty").hidden = true;
+      host.hidden = false;
+      host.innerHTML = documentPreviewShell(attachment, kind, documentPlaceholder("미리보기를 만들지 못했어요", error && error.message ? error.message : "문서 내용을 해석하는 중 오류가 났어요."), n);
+      $("pdfStatus").textContent = "문서 미리보기 실패";
+    }
+  }
   async function renderPdfPage(id) {
     const token = ++pdfRenderToken;
     const n = getNote(id); if (!n || n.type !== "pdf") return;
     let d = normalizePdfData(n.data || {});
     syncPdfControls(n);
-    if (!d.attachments.length && !d.pages.length) { showPdfEmpty(true); $("pdfStatus").textContent = "PDF 없음"; return; }
+    if (!isPdfDocumentData(d)) { await renderDocumentPreview(n, d, token); return; }
+    if (!d.attachments.length && !d.pages.length) { showPdfEmpty(true); $("pdfStatus").textContent = "문서 없음"; return; }
     $("pdfEmpty").hidden = true; $("pdfLoading").hidden = false;
+    if ($("docPreview")) $("docPreview").hidden = true;
     try {
       let entry = d.pages[(d.currentPage || 1) - 1];
       if (!entry && d.attachments[0]) {
@@ -3567,6 +3938,27 @@
     void renderPdfPage(n.id);
   }
   function renderPdfWorkshop() { const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") { back(); return; } beginPdfWorkshopSession(n); }
+  async function replaceDocumentFile(file) {
+    const n = getNote(st.curNoteId);
+    if (!n || n.type !== "pdf" || !file) return;
+    if (isPdfFile(file)) { await replacePdfFile(file); return; }
+    if (!isDocumentFile(file)) { toast("PDF · Word · 한글 · PPT · 엑셀 · TXT 파일을 선택할 수 있어요"); return; }
+    if (file.size > PDF_EDIT_MAX_BYTES) { toast("문서는 80MB 이하만 저장할 수 있어요"); return; }
+    const oldAttachments = normalizePdfData(n.data || {}).attachments;
+    let stored = null;
+    try {
+      stored = await storeDocumentAttachment(n, file);
+      const kind = documentKindForFile(file);
+      n.data = Object.assign({}, makePdfData(), { fileKind: kind, attachments:[stored], memo: normalizePdfData(n.data || {}).memo });
+      if (!n.titleLocked) n.title = documentFileBaseName(stored.name) || "문서 작업실";
+      await saveNote(n);
+      await Promise.all(oldAttachments.map((a) => a && a.id !== stored.id ? del("files", a.id).catch(() => {}) : Promise.resolve()));
+      clearPdfEditCaches(); render(); renderSidebar(); toast(`${documentKindLabel(kind)} 문서를 열었어요`);
+    } catch (e) {
+      if (stored && stored.id) await del("files", stored.id).catch(() => {});
+      toast(e && e.message === "too large" ? "문서는 80MB 이하만 저장할 수 있어요" : "문서 저장에 실패했어요");
+    }
+  }
   async function replacePdfFile(file) {
     const n = getNote(st.curNoteId);
     if (!n || n.type !== "pdf" || !file) return;
@@ -3576,8 +3968,8 @@
     let stored = null;
     try {
       stored = await storePdfAttachment(n, file);
-      n.data = Object.assign({}, normalizePdfData(n.data || {}), { attachments:[stored.attachment], pages:stored.pages, currentPage:1, pageCount:stored.pages.length, rotation:0, selectedPages:[] });
-      if (!n.titleLocked) n.title = pdfFileBaseName(stored.attachment.name) || "PDF 작업실";
+      n.data = Object.assign({}, normalizePdfData(n.data || {}), { fileKind:"pdf", attachments:[stored.attachment], pages:stored.pages, currentPage:1, pageCount:stored.pages.length, rotation:0, selectedPages:[] });
+      if (!n.titleLocked) n.title = pdfFileBaseName(stored.attachment.name) || "문서 작업실";
       await saveNote(n);
       await Promise.all(oldAttachments.map((a) => a && a.id !== stored.attachment.id ? del("files", a.id).catch(() => {}) : Promise.resolve()));
       clearPdfEditCaches(); render(); renderSidebar(); toast("PDF를 열었어요");
@@ -3590,6 +3982,7 @@
     const n = getNote(st.curNoteId); if (!n || n.type !== "pdf") return;
     const list = Array.from(files || []).filter(Boolean); if (!list.length) return;
     let d = normalizePdfData(n.data || {}), added = 0, created = [];
+    if (!isPdfDocumentData(d)) { toast("PDF 문서에서만 병합할 수 있어요"); return; }
     try {
       for (const file of list) {
         if (!isPdfFile(file)) { toast("PDF 파일만 추가할 수 있어요"); continue; }
@@ -3673,19 +4066,27 @@
     n.data = d; syncPdfControls(n); schedulePdfSave(300); renderPdfTextLayer(d, entry);
   }
   function beginPdfTextDrag(event) {
+    const resize = event.target.closest && event.target.closest(".pdf-textbox-resize");
     const grip = event.target.closest && event.target.closest(".pdf-textbox-grip");
-    if (!grip || event.target.closest("button")) return;
-    const boxEl = grip.closest(".pdf-textbox"), layer = $("pdfTextLayer"); if (!boxEl || !layer) return;
+    if (!resize && (!grip || event.target.closest("button"))) return;
+    const boxEl = (resize || grip).closest(".pdf-textbox"), layer = $("pdfTextLayer"); if (!boxEl || !layer) return;
     const rect = layer.getBoundingClientRect(), id = boxEl.dataset.pdfTextId;
     const n = getNote(st.curNoteId), d = normalizePdfData(n && n.data), entry = d.pages[(d.currentPage || 1) - 1], box = entry && (entry.textBoxes || []).find((item) => item.id === id);
     if (!box) return;
-    pdfTextDrag = { id, startX:event.clientX, startY:event.clientY, x:box.x, y:box.y, w:box.w, h:box.h, rect };
+    pdfTextDrag = { id, mode: resize ? "resize" : "move", startX:event.clientX, startY:event.clientY, x:box.x, y:box.y, w:box.w, h:box.h, rect };
     event.preventDefault();
   }
   function movePdfTextDrag(event) {
     if (!pdfTextDrag) return;
     const dx = (event.clientX - pdfTextDrag.startX) / Math.max(1, pdfTextDrag.rect.width);
     const dy = (event.clientY - pdfTextDrag.startY) / Math.max(1, pdfTextDrag.rect.height);
+    if (pdfTextDrag.mode === "resize") {
+      updatePdfTextBox(pdfTextDrag.id, {
+        w: Math.max(0.08, Math.min(1 - pdfTextDrag.x, pdfTextDrag.w + dx)),
+        h: Math.max(0.05, Math.min(1 - pdfTextDrag.y, pdfTextDrag.h + dy))
+      }, true);
+      return;
+    }
     updatePdfTextBox(pdfTextDrag.id, { x: Math.max(0, Math.min(1 - pdfTextDrag.w, pdfTextDrag.x + dx)), y: Math.max(0, Math.min(1 - pdfTextDrag.h, pdfTextDrag.y + dy)) }, true);
   }
   function endPdfTextDrag() { pdfTextDrag = null; }
@@ -3729,6 +4130,13 @@
     const n = getNote(id); if (!n || n.type !== "pdf") return;
     await flushPdfWorkshop(true);
     const d = normalizePdfData(n.data || {});
+    if (!isPdfDocumentData(d)) {
+      const attachment = d.attachments[0], rec = await pdfRecordByAttachment(attachment);
+      if (!rec || !rec.blob) { toast("내보낼 문서가 없어요"); return; }
+      downloadBlob(rec.blob, attachment.name || rec.name || `${documentFileBaseName(n.title)}.${d.fileKind || "txt"}`);
+      toast("문서를 내보냈어요");
+      return;
+    }
     if (!d.pages.length) {
       const rec = await pdfRecord(n);
       if (!rec) { toast("내보낼 PDF가 없어요"); return; }
@@ -3755,11 +4163,12 @@
       const bytes = await outDoc.save();
       downloadBlob(new Blob([bytes], { type:"application/pdf" }), `${pdfFileBaseName(n.title || "pdf-workshop")}-edited.pdf`);
       toast("편집한 PDF를 내보냈어요");
-    } catch (e) { console.warn("pdf export", e); toast("편집 PDF 내보내기에 실패했어요"); }
+    } catch (e) { console.warn("pdf export", e); toast("문서 내보내기에 실패했어요"); }
   }
   async function exportPdfPagePng(id) {
     const n = getNote(id); if (!n || n.type !== "pdf") return;
     await flushPdfWorkshop(true);
+    if (!isPdfDocumentData(normalizePdfData(n.data || {}))) { toast("현재 페이지 PNG는 PDF에서 사용할 수 있어요"); return; }
     if ($("pdfCanvasShell").hidden) await renderPdfPage(id);
     const canvas = $("pdfCanvas");
     if (!canvas || !canvas.width || !canvas.height || $("pdfCanvasShell").hidden) { toast("PNG 변환 도구를 불러오지 못했어요"); return; }
@@ -3782,21 +4191,23 @@
     }, "image/png");
   }
   function openPdfSheet(n) {
-    openSheet(n.title, [
+    const isPdfDoc = isPdfDocumentData(normalizePdfData(n && n.data));
+    const items = [
       { icon: IC.pin, label: n.pinned ? "고정 해제" : "상단 고정", fn: () => togglePinNote(n.id) },
-      { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("PDF 작업실 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
+      { icon: IC.rename, label: "이름 바꾸기", fn: () => renameModal("문서 작업실 이름", n.title, async (v) => { if (v) { n.title = v; n.titleLocked = true; await saveNote(n); render(); } }) },
       { icon: IC.color, label: "색상 지정", fn: () => showChipPicker(n.id) },
-      { icon: IC.save, label: "편집 PDF 내보내기", fn: () => void exportPdfOriginal(n.id) },
-      { icon: IC.export, label: "현재 페이지 PNG 저장", fn: () => void exportPdfPagePng(n.id) },
+      { icon: IC.save, label: "문서 내보내기", fn: () => void exportPdfOriginal(n.id) },
       { icon: IC.move, label: "다른 프로젝트로 이동", fn: () => pickTargetProject(n.projectId, (pid) => moveNote(n.id, pid).then(render)) },
       { icon: IC.copy, label: "선택 위치로 복제", fn: () => pickTargetProject(n.projectId, (pid) => duplicateNote(n.id, pid).then(render)) },
-      { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("PDF 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
-    ]);
+      { icon: IC.del, label: "삭제", danger: true, fn: () => confirmModal("문서 작업실 삭제", `'${n.title}'를 삭제할까요?`, "삭제", true, async () => { await deleteNote(n.id); back(); }) }
+    ];
+    if (isPdfDoc) items.splice(4, 0, { icon: IC.export, label: "현재 페이지 PNG 저장", fn: () => void exportPdfPagePng(n.id) });
+    openSheet(n.title, items);
   }
   function openPdfFile(file) {
     if (!file) return;
-    if (!isPdfFile(file)) { toast("PDF 파일만 열 수 있어요"); return; }
-    pickTargetProject(st.curProjectId, async (pid) => { const n = await createNote("pdf", pid); st.curNoteId = n.id; st.curProjectId = pid; await replacePdfFile(file); go({ s:"pdf" }); });
+    if (!isDocumentFile(file)) { toast("PDF · Word · 한글 · PPT · 엑셀 · TXT 파일을 열 수 있어요"); return; }
+    pickTargetProject(st.curProjectId, async (pid) => { const n = await createNote("pdf", pid); st.curNoteId = n.id; st.curProjectId = pid; await replaceDocumentFile(file); go({ s:"pdf" }); });
   }
 
   /* ---------- Regex workshop: SillyTavern findRegex / replaceString lab ---------- */
@@ -7873,7 +8284,7 @@
           ${card("lorebook", "", "로어북", "마크다운 · 키워드 · 토큰 · World Info 내보내기", icons.lore)}
           ${card("html", "", "코드 작업실", "원본 코드 보존 · 샌드박스 미리보기 · 그대로 내보내기", icons.html)}
           ${card("regex", "", "정규식 작업실", "IN 검증 · OUT HTML 미리보기 · SillyTavern JSON 내보내기", icons.regex)}
-          ${card("pdf", "", "PDF 작업실", "PDF 열기 · 메모 편집 · PDF/PNG 내보내기", icons.pdf)}
+          ${card("pdf", "", "문서 작업실", "PDF · Word · 한글 · PPT · 엑셀 · TXT 열기", icons.pdf)}
         </div>
         <div class="type-picker-pane" data-type-pane="atelier" role="tabpanel" hidden>
           <div class="type-pane-caption">Creative atelier</div>
@@ -8059,7 +8470,7 @@
   const TOP_TITLE_IDS = ["edTitle", "readTitle", "htmlTitle", "regexTitle", "pdfTitle", "loreTitle", "logTitle", "perTitle", "charTitle", "ideaTitle"];
   function titleKindLabel(n) {
     if (!n) return "메모";
-    return ({ free:"메모", html:"코드 작업실", regex:"정규식 작업실", pdf:"PDF 작업실", lorebook:"로어북", log:"로그", persona:"페르소나", character:"캐릭터", idea:"아이디어 보드" })[n.type] || "메모";
+    return ({ free:"메모", html:"코드 작업실", regex:"정규식 작업실", pdf:"문서 작업실", lorebook:"로어북", log:"로그", persona:"페르소나", character:"캐릭터", idea:"아이디어 보드" })[n.type] || "메모";
   }
   async function saveTopTitleRename(n, value) {
     const next = cleanImportedText(value, 80).trim(); if (!n || !next) return;
@@ -8574,7 +8985,7 @@
     const type = sourceType;
     const note = {
       id: raw.id, projectId: raw.projectId, type,
-      title: cleanImportedText(raw.title, 180) || (sourceType === "persona" ? "이름 없는 페르소나" : type === "character" ? "이름 없는 캐릭터 모음" : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "pdf" ? "새 PDF 작업실" : type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : "제목 없는 메모"),
+      title: cleanImportedText(raw.title, 180) || (sourceType === "persona" ? "이름 없는 페르소나" : type === "character" ? "이름 없는 캐릭터 모음" : type === "html" ? "제목 없는 코드 작업실" : type === "regex" ? "새 정규식 작업실" : type === "pdf" ? "새 문서 작업실" : type === "lorebook" ? "이름 없는 로어북" : type === "log" ? "이름 없는 로그" : "제목 없는 메모"),
       titleLocked: !!raw.titleLocked,
       chipColor: CHIP[raw.chipColor] ? raw.chipColor : null,
       createdAt: Number(raw.createdAt) || now(),
@@ -9542,7 +9953,7 @@ ${gallery}
   }
   function importHtmlFile(file) {
     if (!file) { toast("열 파일을 찾지 못했어요"); return; }
-    if (isPdfFile(file)) { openPdfFile(file); return; }
+    if (isDocumentFile(file)) { openPdfFile(file); return; }
     const declaredJson = isJsonFile(file);
     const declaredMarkdown = isMarkdownFile(file);
     const size = Number(file && file.size || 0);
@@ -10480,7 +10891,7 @@ ${gallery}
       const input = e.target;
       const f = input && input.files && input.files[0];
       if (input) input.value = "";
-      if (f) void replacePdfFile(f);
+      if (f) void replaceDocumentFile(f);
     });
     $on("pdfAddInput", "change", (e) => {
       const input = e.target;
@@ -13667,7 +14078,7 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
       if (slot.characterVariant === "lucy") return slot.createMode === "collection" ? "다인 캐릭터" : "캐릭터";
       return slot.createMode === "collection" ? "루미 다인 캐릭터" : "루미 캐릭터";
     }
-    return ({free:"자유 메모",html:"코드 작업실",regex:"정규식 작업실",pdf:"PDF 작업실",lorebook:"로어북",log:"로그 저장",idea:"아이디어 보드"})[type] || "메모";
+    return ({free:"자유 메모",html:"코드 작업실",regex:"정규식 작업실",pdf:"문서 작업실",lorebook:"로어북",log:"로그 저장",idea:"아이디어 보드"})[type] || "메모";
   }
   function quickMenuSlotLabel(slot) {
     if (!slot || !slot.kind) return "빈 슬롯";
@@ -13812,7 +14223,7 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
   }
   function openQuickMenuCreateTypePicker(index) {
     const options=[
-      ["free","single","자유 메모","바로 빈 문서 열기"],["html","single","코드 작업실","HTML · JSON · MD 원본 편집"],["regex","single","정규식 작업실","SillyTavern Regex 만들기"],["pdf","single","PDF 작업실","PDF 열기와 내보내기"],["lorebook","single","로어북","World Info용 항목 만들기"],["log","single","로그 저장","대화 로그용 메모 만들기"],
+      ["free","single","자유 메모","바로 빈 문서 열기"],["html","single","코드 작업실","HTML · JSON · MD 원본 편집"],["regex","single","정규식 작업실","SillyTavern Regex 만들기"],["pdf","single","문서 작업실","PDF · Word · 한글 · PPT · 엑셀 · TXT 열기"],["lorebook","single","로어북","World Info용 항목 만들기"],["log","single","로그 저장","대화 로그용 메모 만들기"],
       ["persona","single","페르소나","단일 페르소나 카드"],["persona","collection","다인 페르소나","페르소나 모음 카드"],["character","single","캐릭터","신규 캐릭터 카드 · 이미지형/텍스트형"],["character","collection","다인 캐릭터","신규 캐릭터 모음 · 이미지형/텍스트형"],["character","single","루미 캐릭터","기존 호환 캐릭터 카드"],["character","collection","루미 다인 캐릭터","기존 호환 캐릭터 모음"],["idea","single","아이디어 보드","자유 배치 보드 만들기"]
     ];
     openModal(`<h3>만들 메모 타입</h3><p class="m-sub">실행하면 이 타입의 새 메모를 바로 만듭니다.</p><div class="qm-picker-list">${options.map(([type,mode,label,desc])=>`<button type="button" class="qm-picker-row" data-qm-create-type="${type}" data-qm-create-mode="${mode}" data-qm-card-variant="${label.startsWith("루미") ? "lumi" : (type === "character" ? "lucy" : "")}"><b>${esc(label)}</b><small>${esc(desc)}</small></button>`).join("")}</div><div class="m-row"><button class="m-btn" id="qmCreateTypeBack">뒤로</button></div>`);
@@ -13910,10 +14321,37 @@ ornamentLine: { label: "장식 실선", desc: "중앙 장식이 있는 구분선
   function openCharacterDisplayStylePicker(n){const current=lucyCharacterStyle(n);openModal(`<h3>캐릭터 표시 형식</h3><p class="m-sub">이미지형은 포트레이트와 정사각형 썸네일을 사용하고, 텍스트형은 제목이 있는 설명 항목을 중심으로 보여줘요. 갤러리는 두 형식 모두 유지됩니다.</p><div class="qm-display-pick"><button type="button" class="qm-display-choice${current==="image"?" selected":""}" data-char-style="image"><span class="qm-display-schematic full"><i></i><i></i><i></i></span><b>이미지형</b><small>포트레이트 · 정사각 썸네일</small></button><button type="button" class="qm-display-choice${current==="text"?" selected":""}" data-char-style="text"><span class="qm-display-schematic mini"><i></i><i></i><i></i><i></i></span><b>텍스트형</b><small>제목형 설명 항목 · 갤러리 선택</small></button></div><div class="m-row"><button class="m-btn" id="charStyleCancel">취소</button></div>`);$("modalBox").querySelectorAll("[data-char-style]").forEach((button)=>button.addEventListener("click",()=>{closeModal();void setCharacterDisplayStyle(n,button.dataset.charStyle);}));$on("charStyleCancel","click",closeModal);}
   function openCharacterSheet(n){const d=ensureCharacterData(n),single=d.mode==="single",variant=lucyCharacterVariant(n),baseKind=n.type==="persona"?"페르소나":(variant==="lucy"?"캐릭터":"루미 캐릭터"),kind=single?baseKind:`다인 ${baseKind}`;const items=[{icon:IC.pin,label:n.pinned?"고정 해제":"상단 고정",fn:()=>togglePinNote(n.id)},{icon:IC.rename,label:"메모 이름 바꾸기",fn:()=>renameModal(`${kind} 이름`,n.title,async(v)=>{if(v){n.title=v;n.titleLocked=true;await saveCharacter(n,true);render();}})}];if(n.type==="character"&&variant==="lucy")items.push({icon:'<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h7"/></svg>',label:`표시 형식 · ${lucyCharacterStyle(n)==="text"?"텍스트형":"이미지형"}`,fn:()=>openCharacterDisplayStylePicker(n)});if(!(n.type==="character"&&variant==="lucy"&&lucyCharacterStyle(n)==="text"))items.push({icon:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.7"/><path d="M21 16l-5-5L5 21"/></svg>',label:"대표 썸네일 지정",fn:()=>chooseCharacterCover(n)});items.push({icon:IC.color,label:"색상 지정",fn:()=>showChipPicker(n.id)},{icon:IC.save,label:`${kind} HTML로 저장`,fn:async()=>{if(st.charEdit)await flushCharacter();chooseCharacterExportOptions(n.id);}});if(single)items.push({icon:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M18 16v5M15.5 18.5h5"/></svg>',label:`${baseKind} 모음으로 확장`,fn:()=>setCharacterMode(n,"collection")});else if(d.pages.length===1)items.push({icon:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>',label:`단일 ${baseKind}로 정리`,fn:()=>setCharacterMode(n,"single")});if(!single&&d.pages.length>1)items.push({icon:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="10" height="14" rx="2"/><path d="M9 8h2M9 12h2"/><path d="M15 10h4v10H9v-2"/></svg>',label:`현재 페이지를 단일 ${baseKind}로 분리 복사`,fn:()=>copyActiveCharacterPageAsSingle(n)},{icon:'<svg viewBox="0 0 24 24"><path d="M8 5h8M8 19h8M12 5v14"/><path d="M5 12h14"/></svg>',label:"현재 캐릭터 페이지 삭제",danger:true,fn:()=>removeActiveCharacterPage()});items.push({icon:IC.move,label:"다른 프로젝트로 이동",fn:()=>pickTargetProject(n.projectId,(pid)=>moveNote(n.id,pid).then(render))},{icon:IC.copy,label:"선택 위치로 복제",fn:()=>pickTargetProject(n.projectId,(pid)=>duplicateNote(n.id,pid).then(render))},{icon:IC.del,label:`${kind} 삭제`,danger:true,fn:()=>confirmModal(`${kind} 삭제`, `'${n.title}'를 삭제할까요?`,"삭제",true,async()=>{await deleteNote(n.id);back();})});openSheet(n.title,items);}
   function typePickerOptions(button){const type=button.dataset.createType||button.dataset.t,mode=button.dataset.characterMode==="single"?"single":"collection",variant=button.dataset.cardVariant==="lumi"?"lumi":(button.dataset.cardVariant==="lucy"?"lucy":null);return {type,options:(type==="character"||type==="persona")?{characterMode:mode,characterVariant:variant}:null};}
-  async function createNote(type,projectId,options){const characterModeOption=options&&options.characterMode==="single"?"single":"collection",characterVariant=options&&options.characterVariant==="lumi"?"lumi":(type==="character"?"lucy":null),characterTitle=characterModeOption==="single"?(characterVariant==="lumi"?"이름 없는 루미 캐릭터":"이름 없는 캐릭터"):(characterVariant==="lumi"?"이름 없는 루미 다인 캐릭터":"이름 없는 다인 캐릭터"),personaTitle=characterModeOption==="single"?"이름 없는 페르소나":"이름 없는 페르소나 모음";const n={id:uid(),projectId,type,title:type==="lorebook"?"이름 없는 로어북":type==="log"?"이름 없는 로그":type==="idea"?"새 아이디어 보드":type==="persona"?personaTitle:type==="character"?characterTitle:type==="html"?"제목 없는 코드 작업실":type==="regex"?"새 정규식 작업실":type==="pdf"?"새 PDF 작업실":"제목 없는 메모",titleLocked:type==="lorebook",chipColor:null,createdAt:now(),updatedAt:now(),data:type==="free"?{html:""}:type==="html"?{source:"",previewPolicy:"sandbox-web",exportFormat:"html"}:type==="regex"?makeRegexData():type==="pdf"?makePdfData():type==="lorebook"?makeLoreData():type==="log"?{content:"",templateId:"system-ink-frame",personaName:"",personaAlias:"",templateSnapshot:null}:(type==="persona"||type==="character")?{mode:characterModeOption,activeId:null,pages:[makeCharacterPage()],cardTypeVersion:3,cardVariant:characterVariant||"lumi",displayStyle:"image"}:type==="idea"?makeIdeaBoardData():{}};st.notes.push(n);await put("notes",n);const p=getProject(projectId);if(p)await saveProject(p);st.curNoteId=n.id;return n;}
+  async function createNote(type,projectId,options){const characterModeOption=options&&options.characterMode==="single"?"single":"collection",characterVariant=options&&options.characterVariant==="lumi"?"lumi":(type==="character"?"lucy":null),characterTitle=characterModeOption==="single"?(characterVariant==="lumi"?"이름 없는 루미 캐릭터":"이름 없는 캐릭터"):(characterVariant==="lumi"?"이름 없는 루미 다인 캐릭터":"이름 없는 다인 캐릭터"),personaTitle=characterModeOption==="single"?"이름 없는 페르소나":"이름 없는 페르소나 모음";const n={id:uid(),projectId,type,title:type==="lorebook"?"이름 없는 로어북":type==="log"?"이름 없는 로그":type==="idea"?"새 아이디어 보드":type==="persona"?personaTitle:type==="character"?characterTitle:type==="html"?"제목 없는 코드 작업실":type==="regex"?"새 정규식 작업실":type==="pdf"?"새 문서 작업실":"제목 없는 메모",titleLocked:type==="lorebook",chipColor:null,createdAt:now(),updatedAt:now(),data:type==="free"?{html:""}:type==="html"?{source:"",previewPolicy:"sandbox-web",exportFormat:"html"}:type==="regex"?makeRegexData():type==="pdf"?makePdfData():type==="lorebook"?makeLoreData():type==="log"?{content:"",templateId:"system-ink-frame",personaName:"",personaAlias:"",templateSnapshot:null}:(type==="persona"||type==="character")?{mode:characterModeOption,activeId:null,pages:[makeCharacterPage()],cardTypeVersion:3,cardVariant:characterVariant||"lumi",displayStyle:"image"}:type==="idea"?makeIdeaBoardData():{}};st.notes.push(n);await put("notes",n);const p=getProject(projectId);if(p)await saveProject(p);st.curNoteId=n.id;return n;}
   function showTypePicker(presetPid){const icon=(paths)=>`<svg viewBox="0 0 24 24">${paths}</svg>`,card=(type,mode,title,desc,ico,variant)=>`<button type="button" class="type-card" data-create-type="${type}"${mode?` data-character-mode="${mode}"`:""}${variant?` data-card-variant="${variant}"`:""}><div class="tc-ico">${ico}</div><div><div class="tc-name">${title}</div><div class="tc-desc">${desc}</div></div></button>`,icons={persona:icon('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),people:icon('<circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="10" r="2.4"/><path d="M3.5 21a6.2 6.2 0 0 1 11 0"/><path d="M13 20.5a4.5 4.5 0 0 1 7.5 0"/>'),lore:icon('<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7"/>'),html:icon('<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/><path d="M13 4l-2 16"/>'),regex:icon('<path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/>'),pdf:icon('<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/>'),free:icon('<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>'),log:icon('<path d="M4 4h16v16H4z"/><path d="M7 8h10M7 12h7M7 16h9"/><path d="M4 7h16"/>'),idea:icon('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 16.5l2.4-5.8 2.3 4.2 1.5-2.2 2.8 3.8"/><circle cx="15.8" cy="8.2" r="1.5"/><path d="M7 7.5h4"/>')};openModal(`<div class="type-picker-modal"><h3>새 메모</h3><p class="m-sub">생성할 메모 타입을 골라주세요</p><button type="button" class="type-quick-free" data-create-type="free" aria-label="자유 메모 만들기"><span class="tqf-icon">${icons.free}</span><span class="tqf-copy"><span class="tqf-eyebrow">QUICK NOTE</span><span class="tqf-title">자유 메모</span><span class="tqf-sub">서식 보존 편집기로 바로 시작하기</span></span><span class="tqf-arrow">${icon('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></button><div class="type-picker-tabs" role="tablist"><button type="button" class="type-picker-tab active" data-type-tab="character" role="tab">캐릭터</button><button type="button" class="type-picker-tab" data-type-tab="studio" role="tab">작업실</button><button type="button" class="type-picker-tab" data-type-tab="atelier" role="tab">아뜰리에</button></div><div class="type-picker-pane active" data-type-pane="character" role="tabpanel"><div class="type-pane-caption">Character cards</div>${card("character","single","캐릭터","신규 카드 · 이미지형/텍스트형 전환",icons.persona,"lucy")}${card("character","collection","다인 캐릭터","여러 인물을 한 카드 묶음으로 관리",icons.people,"lucy")}<div class="type-pane-caption" style="margin-top:16px">Lumi legacy cards</div>${card("character","single","루미 캐릭터","기존 이미지 카드 레이아웃 호환",icons.persona,"lumi")}${card("character","collection","루미 다인 캐릭터","기존 다인 캐릭터 레이아웃 호환",icons.people,"lumi")}${card("persona","single","페르소나","단일 페르소나 카드",icons.persona)}${card("persona","collection","다인 페르소나","여러 페르소나 카드",icons.people)}</div><div class="type-picker-pane" data-type-pane="studio" role="tabpanel" hidden><div class="type-pane-caption">Writing tools</div>${card("lorebook","","로어북","마크다운 · 키워드 · World Info 내보내기",icons.lore)}${card("html","","코드 작업실","원본 코드 보존 · 샌드박스 미리보기",icons.html)}${card("regex","","정규식 작업실","IN 검증 · OUT HTML 미리보기",icons.regex)}${card("pdf","","PDF 작업실","PDF 열기 · 메모 편집 · 내보내기",icons.pdf)}</div><div class="type-picker-pane" data-type-pane="atelier" role="tabpanel" hidden><div class="type-pane-caption">Creative atelier</div>${card("free","","자유 메모","서식 보존 · 이미지 · 코드 보기 지원",icons.free)}${card("log","","로그 저장","대화 로그 · 게시용 HTML 내보내기",icons.log)}${card("idea","","아이디어 보드","캔버스에 요소를 배치해 꾸미기",icons.idea)}</div><div class="m-row"><button class="m-btn" data-x="cancel">취소</button></div></div>`);const box=$("modalBox"),selectTab=(name)=>{box.querySelectorAll(".type-picker-tab").forEach((tab)=>{const on=tab.dataset.typeTab===name;tab.classList.toggle("active",on);tab.setAttribute("aria-selected",on?"true":"false");});box.querySelectorAll(".type-picker-pane").forEach((pane)=>{const on=pane.dataset.typePane===name;pane.classList.toggle("active",on);pane.hidden=!on;});};box.querySelectorAll(".type-picker-tab").forEach((tab)=>tab.addEventListener("click",()=>selectTab(tab.dataset.typeTab)));box.querySelectorAll("[data-create-type]").forEach((button)=>button.addEventListener("click",()=>{const {type,options}=typePickerOptions(button),openCreated=()=>openCreatedNote(type);if(presetPid)createNote(type,presetPid,options).then(openCreated);else showProjectPicker(type,options);}));box.querySelector('[data-x="cancel"]').addEventListener("click",closeModal);}
+  function showTypePicker(presetPid) {
+    const icon = (paths) => `<svg viewBox="0 0 24 24">${paths}</svg>`;
+    const card = (type, mode, title, desc, ico, variant) => `<button type="button" class="type-card" data-create-type="${type}"${mode ? ` data-character-mode="${mode}"` : ""}${variant ? ` data-card-variant="${variant}"` : ""}><div class="tc-ico">${ico}</div><div><div class="tc-name">${title}</div><div class="tc-desc">${desc}</div></div></button>`;
+    const icons = {
+      persona: icon('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+      people: icon('<circle cx="9" cy="8" r="3.2"/><circle cx="16.5" cy="10" r="2.4"/><path d="M3.5 21a6.2 6.2 0 0 1 11 0"/><path d="M13 20.5a4.5 4.5 0 0 1 7.5 0"/>'),
+      lore: icon('<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h7M8 11h7"/>'),
+      html: icon('<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/><path d="M13 4l-2 16"/>'),
+      regex: icon('<path d="M4 6h16M4 18h16"/><path d="M8 10v4M6 12h4M14 10l4 4M18 10l-4 4"/>'),
+      pdf: icon('<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/>'),
+      free: icon('<path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>'),
+      log: icon('<path d="M4 4h16v16H4z"/><path d="M7 8h10M7 12h7M7 16h9"/><path d="M4 7h16"/>'),
+      idea: icon('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 16.5l2.4-5.8 2.3 4.2 1.5-2.2 2.8 3.8"/><circle cx="15.8" cy="8.2" r="1.5"/><path d="M7 7.5h4"/>')
+    };
+    openModal(`<div class="type-picker-modal"><h3>새 메모</h3><p class="m-sub">생성할 메모 타입을 골라주세요</p><button type="button" class="type-quick-free" data-create-type="free" aria-label="자유 메모 만들기"><span class="tqf-icon">${icons.free}</span><span class="tqf-copy"><span class="tqf-eyebrow">QUICK NOTE</span><span class="tqf-title">자유 메모</span><span class="tqf-sub">서식 보존 편집기로 바로 시작하기</span></span><span class="tqf-arrow">${icon('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></button><div class="type-picker-tabs" role="tablist"><button type="button" class="type-picker-tab active" data-type-tab="character" role="tab">캐릭터</button><button type="button" class="type-picker-tab" data-type-tab="studio" role="tab">작업실</button><button type="button" class="type-picker-tab" data-type-tab="atelier" role="tab">아뜰리에</button></div><div class="type-picker-pane active" data-type-pane="character" role="tabpanel"><div class="type-pane-caption">Character cards</div>${card("character","single","캐릭터","신규 카드 · 이미지형/텍스트형 전환",icons.persona,"lucy")}${card("character","collection","다인 캐릭터","여러 인물을 한 카드 묶음으로 관리",icons.people,"lucy")}<div class="type-pane-caption" style="margin-top:16px">Lumi legacy cards</div>${card("character","single","루미 캐릭터","기존 이미지 카드 레이아웃 호환",icons.persona,"lumi")}${card("character","collection","루미 다인 캐릭터","기존 다인 캐릭터 레이아웃 호환",icons.people,"lumi")}${card("persona","single","페르소나","단일 페르소나 카드",icons.persona)}${card("persona","collection","다인 페르소나","여러 페르소나 카드",icons.people)}</div><div class="type-picker-pane" data-type-pane="studio" role="tabpanel" hidden><div class="type-pane-caption">Writing tools</div>${card("lorebook","","로어북","마크다운 · 키워드 · World Info 내보내기",icons.lore)}${card("html","","코드 작업실","원본 코드 보존 · 샌드박스 미리보기",icons.html)}${card("regex","","정규식 작업실","IN 검증 · OUT HTML 미리보기",icons.regex)}${card("pdf","","문서 작업실","PDF · Word · 한글 · PPT · 엑셀 · TXT 열기",icons.pdf)}</div><div class="type-picker-pane" data-type-pane="atelier" role="tabpanel" hidden><div class="type-pane-caption">Creative atelier</div>${card("free","","자유 메모","서식 보존 · 이미지 · 코드 보기 지원",icons.free)}${card("log","","로그 저장","대화 로그 · 게시용 HTML 내보내기",icons.log)}${card("idea","","아이디어 보드","캔버스에 요소를 배치해 꾸미기",icons.idea)}</div><div class="m-row"><button class="m-btn" data-x="cancel">취소</button></div></div>`);
+    const box = $("modalBox");
+    const selectTab = (name) => {
+      box.querySelectorAll(".type-picker-tab").forEach((tab) => { const on = tab.dataset.typeTab === name; tab.classList.toggle("active", on); tab.setAttribute("aria-selected", on ? "true" : "false"); });
+      box.querySelectorAll(".type-picker-pane").forEach((pane) => { const on = pane.dataset.typePane === name; pane.classList.toggle("active", on); pane.hidden = !on; });
+    };
+    box.querySelectorAll(".type-picker-tab").forEach((tab) => tab.addEventListener("click", () => selectTab(tab.dataset.typeTab)));
+    box.querySelectorAll("[data-create-type]").forEach((button) => button.addEventListener("click", () => {
+      const { type, options } = typePickerOptions(button), openCreated = () => openCreatedNote(type);
+      if (presetPid) createNote(type, presetPid, options).then(openCreated); else showProjectPicker(type, options);
+    }));
+    box.querySelector('[data-x="cancel"]').addEventListener("click", closeModal);
+  }
   function noteTypeLabel(n){if(n&&n.type==="character"){const d=ensureCharacterData(n);return d.cardVariant==="lucy"?(d.mode==="single"?"캐릭터":"다인 캐릭터"):(d.mode==="single"?"루미 캐릭터":"루미 다인 캐릭터");}return TYPE_LABEL[visualMemoType(n)]||(n&&n.type)||"";}
-  function noteTypeShortLabel(n){if(n&&n.type==="character")return noteTypeLabel(n);const type=visualMemoType(n);return ({free:"자유메모",html:"HTML",regex:"정규식",pdf:"PDF",lorebook:"로어북",log:"로그",persona:"페르소나",idea:"아이디어 보드"})[type]||noteTypeLabel(n);}
+  function noteTypeShortLabel(n){if(n&&n.type==="character")return noteTypeLabel(n);const type=visualMemoType(n);return ({free:"자유메모",html:"HTML",regex:"정규식",pdf:"문서",lorebook:"로어북",log:"로그",persona:"페르소나",idea:"아이디어 보드"})[type]||noteTypeLabel(n);}
 
   // Backup/snapshot bodies carry both independent quick-menu configurations.
   async function exportBackup(){try{const files=await getAll("files"),fileRecs=[];for(const f of files){try{fileRecs.push({id:f.id,noteId:f.noteId,name:f.name,type:f.type,size:f.size,createdAt:f.createdAt,data:await blobToBase64(f.blob)});}catch(e){}}const payload={app:"lumink",version:5,exportedAt:now(),projects:st.projects,notes:st.notes,files:fileRecs,quickMenu:jsonCopy(quickMenuConfig("memo")),diaryQuickMenu:jsonCopy(quickMenuConfig("diary")),diary:jsonCopy(diaryConfig()),appearance:appearanceSnapshot()};const json=JSON.stringify(payload).replace(/</g,"\\u003c"),summary=st.projects.map((p)=>{const ns=st.notes.filter((n)=>n.projectId===p.id);return `<section><h2>${esc(p.name)}</h2>${p.description?`<p class="d">${esc(p.description)}</p>`:""}<p class="c">메모 ${ns.length}개</p><ul>${ns.map((n)=>`<li>${esc(n.title||"(제목 없음)")} <em>${esc(noteTypeLabel(n))}</em></li>`).join("")}</ul></section>`;}).join("");const doc=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>루시잉크 백업 ${new Date().toLocaleDateString("ko")}</title><style>body{font-family:-apple-system,"Noto Sans KR",sans-serif;max-width:720px;margin:0 auto;padding:34px 20px;line-height:1.6;color:#1c1b19;background:#faf9f7}h1{font-size:23px;margin:0 0 4px}h2{font-size:17px;margin:22px 0 6px;border-bottom:1px solid #e7e3da;padding-bottom:5px}em{color:#9a948a;font-style:normal;font-size:.82em;margin-left:4px}ul{margin:6px 0 0;padding-left:20px}li{margin:2px 0}.note{color:#a09a8f;font-size:13px}.d{color:#666;margin:2px 0}.c{color:#9a948a;font-size:13px;margin:2px 0}</style></head><body><h1>루시 ✦ 잉크 백업</h1><p class="note">${new Date().toLocaleString("ko")} · 프로젝트 ${st.projects.length}개 · 메모 ${st.notes.length}개 · 다이어리 ${diaryConfig().diaries.length}개</p>${summary}<p class="note" style="margin-top:26px">이 파일을 루시잉크 → 설정 → 백업 복원에서 가져오면 데이터가 복원됩니다.</p><script type="application/json" id="lumink-backup">${json}<\/script></body></html>`;downloadDoc(doc,`luci-ink-backup-${dateStamp()}.html`,"text/html");toast("백업을 저장했어요");}catch(e){toast("백업에 실패했어요");}}
